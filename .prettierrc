@@ -1,0 +1,11 @@
+{
+  "printWidth": 120,
+  "trailingComma": "all",
+  "useTabs": false,
+  "tabWidth": 2,
+  "singleQuote": true,
+  "jsxSingleQuote": false,
+  "endOfLine": "auto",
+  "ignorePath": ".gitignore",
+  "plugins": ["./prettier-plugin.js"]
+}

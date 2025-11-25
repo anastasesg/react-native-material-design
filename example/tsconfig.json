@@ -1,0 +1,14 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./*"],
+      "react-native-material-design": ["../lib/typescript/src/index.d.ts"],
+      "react-native-material-design/ui/*": ["../lib/typescript/src/components/ui/*.d.ts"],
+      "react-native-material-design/navigation/*": ["../lib/typescript/src/navigation/*.d.ts"],
+      "react-native-material-design/navigation/expo/*": ["../lib/typescript/src/navigation/expo/*.d.ts"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}

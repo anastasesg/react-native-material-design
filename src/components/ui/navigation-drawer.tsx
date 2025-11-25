@@ -1,0 +1,603 @@
+/// Material Design Navigation Drawer
+/// Overview: https://m3.material.io/components/navigation-drawer/overview
+/// Specs: https://m3.material.io/components/navigation-drawer/specs
+/// Guidelines: https://m3.material.io/components/navigation-drawer/guidelines
+/// Accessibility: https://m3.material.io/components/navigation-drawer/accessibility
+
+import React from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
+import { Modal, Pressable as RNPressable, ScrollView, View } from 'react-native';
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
+import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+
+import { useInteraction } from '../../hooks';
+import { Icon, type IconProps } from './icon';
+import { Text, type TextProps } from './text';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+type NavigationDrawerVariant = 'standard' | 'modal';
+
+type NavigationDrawerProps = {
+  /** Which variant: standard (inline) or modal (overlay with scrim). */
+  variant?: NavigationDrawerVariant;
+  /** Whether the drawer is open (controlled). */
+  open?: boolean;
+  /** Called when the open state changes (scrim tap, back button). */
+  onOpenChange?: (open: boolean) => void;
+  /** Headline text displayed at the top of the drawer. */
+  headline?: string;
+  /** Currently active item value (controlled). */
+  value?: string;
+  /** Initial active item value (uncontrolled). */
+  defaultValue?: string;
+  /** Called when the active item changes. */
+  onValueChange?: (value: string) => void;
+  /** Style applied to the drawer container. */
+  style?: StyleProp<ViewStyle>;
+  /** Content rendered inside the drawer (NavigationDrawerItem, NavigationDrawerSectionLabel, Divider). */
+  children?: React.ReactNode;
+};
+
+type NavigationDrawerItemProps = {
+  /** Value identifier for this item (used with NavigationDrawer context). */
+  value: string;
+  /** Accessibility label for the pressable. */
+  accessibilityLabel?: string;
+  /** Style override. */
+  style?: StyleProp<ViewStyle>;
+  /** Children: NavigationDrawerIcon, NavigationDrawerLabel, NavigationDrawerBadge. */
+  children?: React.ReactNode;
+};
+
+type NavigationDrawerIconProps = Omit<IconProps, 'size'> & {
+  /** @internal Injected by parent NavigationDrawerItem. */
+  __internal__drawerActive?: boolean;
+};
+
+type NavigationDrawerLabelProps = Omit<TextProps, 'variant' | 'size'> & {
+  /** @internal Injected by parent NavigationDrawerItem. */
+  __internal__drawerActive?: boolean;
+};
+
+type NavigationDrawerBadgeProps = Omit<TextProps, 'variant' | 'size'>;
+
+type NavigationDrawerSectionLabelProps = Omit<TextProps, 'variant' | 'size'> & {
+  /** Style override. */
+  style?: StyleProp<ViewStyle>;
+};
+
+// =============================================================================
+// Context (NavigationDrawer -> NavigationDrawerItem communication)
+// =============================================================================
+
+type NavigationDrawerContextValue = {
+  value: string | undefined;
+  onSelect: (value: string) => void;
+};
+
+const NavigationDrawerContext = React.createContext<NavigationDrawerContextValue | null>(null);
+
+// =============================================================================
+// Constants (M3 Specs)
+// =============================================================================
+
+/** Container width — md.comp.navigation-drawer.container.width = 360dp */
+const CONTAINER_WIDTH = 360;
+
+/** Active indicator height — md.comp.navigation-drawer.active-indicator.height = 56dp */
+const INDICATOR_HEIGHT = 56;
+
+/** Active indicator width — md.comp.navigation-drawer.active-indicator.width = 336dp */
+const INDICATOR_WIDTH = 336;
+
+/** Icon size — md.comp.navigation-drawer.icon.size = 24dp */
+const ICON_SIZE = 24;
+
+/** Left/right padding for label content — 28dp from measurements */
+const ITEM_HORIZONTAL_PADDING = 28;
+
+/** Active indicator padding from container edge — 12dp from measurements */
+const INDICATOR_PADDING = 12;
+
+/** Scrim opacity — matching SideSheet pattern (0.32) */
+const SCRIM_OPACITY = 0.32;
+
+/** Headline vertical padding — 16dp (from measurement diagrams) */
+const HEADLINE_VERTICAL_PADDING = 16;
+
+/** Headline horizontal padding — 28dp (same as item content) */
+const HEADLINE_HORIZONTAL_PADDING = 28;
+
+/** Gap between icon and label inside item — 12dp (from measurements) */
+const ICON_LABEL_GAP = 12;
+
+// =============================================================================
+// NavigationDrawer (container — manages active item + open/close state)
+// =============================================================================
+
+function NavigationDrawer({
+  variant = 'modal',
+  open: controlledOpen,
+  onOpenChange,
+  headline,
+  value: valueProp,
+  defaultValue,
+  onValueChange,
+  style,
+  children,
+}: NavigationDrawerProps) {
+  styles.useVariants({ variant });
+
+  // --- Controlled/uncontrolled open state ---
+  const isOpenControlled = controlledOpen !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isOpen = isOpenControlled ? controlledOpen : internalOpen;
+
+  // `visible` keeps the component mounted during exit animations.
+  const [visible, setVisible] = React.useState(false);
+
+  const setOpen = React.useCallback((next: boolean) => {
+    if (!isOpenControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  }, [isOpenControlled, onOpenChange]);
+
+  const handleScrimPress = React.useCallback(() => {
+    setOpen(false);
+  }, [setOpen]);
+
+  // --- Controlled/uncontrolled value state ---
+  const isValueControlled = valueProp !== undefined;
+  const [internalValue, setInternalValue] = React.useState(defaultValue);
+  const value = isValueControlled ? valueProp : internalValue;
+
+  const handleSelect = React.useCallback((itemValue: string) => {
+    if (!isValueControlled) {
+      setInternalValue(itemValue);
+    }
+    onValueChange?.(itemValue);
+  }, [isValueControlled, onValueChange]);
+
+  const contextValue = React.useMemo<NavigationDrawerContextValue>(
+    () => ({ value, onSelect: handleSelect }),
+    [value, handleSelect],
+  );
+
+  // --- Animation — progress-driven width expansion (same pattern as SideSheet) ---
+  const progress = useSharedValue(0);
+
+  const onCloseAnimationEnd = React.useCallback((finished?: boolean) => {
+    'worklet';
+    if (finished) {
+      scheduleOnRN(setVisible, false);
+    }
+  }, []);
+
+  // Phase 1: mount (reset progress to 0) or start exit animation
+  React.useEffect(() => {
+    if (isOpen) {
+      progress.value = 0;
+      setVisible(true);
+    } else if (visible) {
+      const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
+      progress.value = withSpring(0, fastEffects, onCloseAnimationEnd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Phase 2: once mounted, run the enter animation
+  React.useEffect(() => {
+    if (visible && isOpen) {
+      const { fastSpatial } = UnistylesRuntime.getTheme().motion.spring;
+      progress.value = withSpring(1, fastSpatial);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const animatedDrawerStyle = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [0, CONTAINER_WIDTH], {
+      extrapolateLeft: Extrapolation.CLAMP,
+      extrapolateRight: Extrapolation.EXTEND,
+    }),
+  }));
+
+  const animatedScrimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 1], [0, SCRIM_OPACITY], Extrapolation.CLAMP),
+  }));
+
+  if (!visible) return null;
+
+  const drawerContent = (
+    <Animated.View
+      style={[styles.container, animatedDrawerStyle, style]}
+      role="navigation"
+      accessibilityViewIsModal={variant === 'modal'}
+      accessibilityLabel={headline ? `${headline} navigation drawer` : 'Navigation drawer'}
+    >
+      {/* Headline (outside scroll, stays at top) */}
+      {headline && (
+        <View style={styles.headlineContainer}>
+          <Text variant="title" size="small" style={styles.headline} numberOfLines={1}>
+            {headline}
+          </Text>
+        </View>
+      )}
+
+      {/* Scrollable content */}
+      <NavigationDrawerContext.Provider value={contextValue}>
+        <ScrollView
+          style={styles.scrollContent}
+          contentContainerStyle={styles.scrollContentContainer}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          {children}
+        </ScrollView>
+      </NavigationDrawerContext.Provider>
+    </Animated.View>
+  );
+
+  if (variant === 'modal') {
+    return (
+      <Modal transparent visible onRequestClose={() => setOpen(false)} statusBarTranslucent>
+        {/* Scrim */}
+        <RNPressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={handleScrimPress}
+          accessibilityRole="button"
+          accessibilityLabel="Close navigation drawer"
+        >
+          <Animated.View style={[styles.scrim, animatedScrimStyle]} />
+        </RNPressable>
+
+        {/* Drawer anchored to start edge */}
+        <View style={styles.modalAnchor} pointerEvents="box-none">
+          {drawerContent}
+        </View>
+      </Modal>
+    );
+  }
+
+  // Standard variant: rendered inline
+  return <View style={styles.standardWrapper}>{drawerContent}</View>;
+}
+
+// =============================================================================
+// NavigationDrawerItem (pressable item — icon + label + active indicator + badge)
+// =============================================================================
+
+function NavigationDrawerItem({ value: itemValue, accessibilityLabel, style, children }: NavigationDrawerItemProps) {
+  const ctx = React.useContext(NavigationDrawerContext);
+  const active = ctx ? ctx.value === itemValue : false;
+
+  styles.useVariants({ active });
+
+  const { progress, handlers } = useInteraction('press');
+  const selectProgress = useSharedValue(active ? 1 : 0);
+  const animatedTheme = useAnimatedTheme();
+
+  // Sync selection animation with active state
+  React.useEffect(() => {
+    const theme = UnistylesRuntime.getTheme();
+    selectProgress.value = withTiming(active ? 1 : 0, {
+      duration: theme.motion.duration.short2,
+      easing: Easing.bezier(...theme.motion.easing.standard),
+    });
+  }, [active, selectProgress]);
+
+  const onSelect = ctx?.onSelect;
+  const handlePress = React.useCallback(() => {
+    onSelect?.(itemValue);
+  }, [onSelect, itemValue]);
+
+  // Active indicator animation — scale from center
+  const indicatorAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(selectProgress.value, [0, 0.3], [0, 1], Extrapolation.CLAMP),
+    transform: [
+      {
+        scaleX: interpolate(selectProgress.value, [0, 1], [0.5, 1], Extrapolation.CLAMP),
+      },
+    ],
+  }));
+
+  // State layer opacity (press feedback)
+  const stateLayerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.press.value, [0, 1], [0, animatedTheme.value.state.pressed], Extrapolation.CLAMP),
+  }));
+
+  // Slot extraction — classify children by displayName
+  let iconEl: React.ReactNode = null;
+  let labelEl: React.ReactNode = null;
+  let badgeEl: React.ReactNode = null;
+
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    const displayName = (child.type as any)?.displayName;
+    if (displayName === 'NavigationDrawerIcon') {
+      iconEl = React.cloneElement(child, {
+        __internal__drawerActive: active,
+      } as any);
+    } else if (displayName === 'NavigationDrawerLabel') {
+      labelEl = React.cloneElement(child, {
+        __internal__drawerActive: active,
+      } as any);
+    } else if (displayName === 'NavigationDrawerBadge') {
+      badgeEl = child;
+    }
+  });
+
+  return (
+    <RNPressable
+      style={[styles.item, style]}
+      onPress={handlePress}
+      {...handlers}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={accessibilityLabel}
+    >
+      <View style={styles.itemContent}>
+        {/* Active indicator background */}
+        <Animated.View style={[styles.indicator, indicatorAnimatedStyle]} />
+        {/* State layer */}
+        <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
+        {/* Content row */}
+        <View style={styles.itemRow}>
+          {iconEl}
+          {labelEl}
+          {badgeEl && <View style={styles.badgeContainer}>{badgeEl}</View>}
+        </View>
+      </View>
+    </RNPressable>
+  );
+}
+
+NavigationDrawerItem.displayName = 'NavigationDrawerItem';
+
+// =============================================================================
+// NavigationDrawerIcon (leading icon — color changes based on active state)
+// =============================================================================
+
+function NavigationDrawerIcon({ __internal__drawerActive = false, style, ...props }: NavigationDrawerIconProps) {
+  styles.useVariants({ active: __internal__drawerActive });
+
+  return <Icon size={ICON_SIZE} style={[styles.icon, style]} {...props} />;
+}
+
+NavigationDrawerIcon.displayName = 'NavigationDrawerIcon';
+
+// =============================================================================
+// NavigationDrawerLabel (label text — color/weight changes based on active state)
+// =============================================================================
+
+function NavigationDrawerLabel({ __internal__drawerActive = false, style, ...props }: NavigationDrawerLabelProps) {
+  styles.useVariants({ active: __internal__drawerActive });
+
+  return <Text variant="label" size="large" style={[styles.label, style]} numberOfLines={1} {...props} />;
+}
+
+NavigationDrawerLabel.displayName = 'NavigationDrawerLabel';
+
+// =============================================================================
+// NavigationDrawerBadge (trailing badge label — label large, onSurfaceVariant)
+// =============================================================================
+
+function NavigationDrawerBadge({ style, ...props }: NavigationDrawerBadgeProps) {
+  return <Text variant="label" size="large" style={[styles.badge, style]} numberOfLines={1} {...props} />;
+}
+
+NavigationDrawerBadge.displayName = 'NavigationDrawerBadge';
+
+// =============================================================================
+// NavigationDrawerSectionLabel (section header — title small, onSurfaceVariant)
+// =============================================================================
+
+function NavigationDrawerSectionLabel({ style, ...props }: NavigationDrawerSectionLabelProps) {
+  return (
+    <View style={[styles.sectionLabelContainer, style]}>
+      <Text variant="title" size="small" style={styles.sectionLabel} numberOfLines={1} {...props} />
+    </View>
+  );
+}
+
+NavigationDrawerSectionLabel.displayName = 'NavigationDrawerSectionLabel';
+
+// =============================================================================
+// Styles
+// =============================================================================
+
+const styles = StyleSheet.create((theme, rt) => ({
+  // --- Scrim (modal only) ---
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.scheme.scrim,
+  },
+
+  // --- Modal anchor (start edge) ---
+  modalAnchor: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+
+  // --- Standard wrapper ---
+  standardWrapper: {
+    flexDirection: 'row',
+    height: '100%',
+  },
+
+  // --- Container ---
+  container: {
+    height: '100%',
+    overflow: 'hidden',
+    paddingTop: rt.insets.top,
+    paddingBottom: rt.insets.bottom,
+    // Shape: 0,16,16,0dp — flat on start edge, 16dp rounded on end edge
+    borderTopEndRadius: theme.shape.large,
+    borderBottomEndRadius: theme.shape.large,
+
+    variants: {
+      variant: {
+        standard: {
+          backgroundColor: theme.scheme.surface,
+          ...theme.elevation[0],
+        },
+        modal: {
+          backgroundColor: theme.scheme.surfaceContainerLow,
+          ...theme.elevation[1],
+        },
+      },
+    },
+  },
+
+  // --- Headline ---
+  headlineContainer: {
+    paddingVertical: HEADLINE_VERTICAL_PADDING,
+    paddingHorizontal: HEADLINE_HORIZONTAL_PADDING,
+  },
+
+  headline: {
+    color: theme.scheme.onSurfaceVariant,
+  },
+
+  // --- ScrollView ---
+  scrollContent: {
+    flex: 1,
+  },
+
+  scrollContentContainer: {
+    paddingBottom: 8,
+  },
+
+  // --- Item ---
+  item: {
+    paddingHorizontal: INDICATOR_PADDING,
+  },
+
+  itemContent: {
+    height: INDICATOR_HEIGHT,
+    width: INDICATOR_WIDTH,
+    justifyContent: 'center',
+  },
+
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: ITEM_HORIZONTAL_PADDING - INDICATOR_PADDING,
+    gap: ICON_LABEL_GAP,
+    zIndex: 1,
+  },
+
+  // --- Active indicator ---
+  indicator: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.scheme.secondaryContainer,
+    borderRadius: theme.shape.full,
+  },
+
+  // --- State layer ---
+  stateLayer: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: theme.shape.full,
+
+    variants: {
+      active: {
+        true: {
+          backgroundColor: theme.scheme.onSecondaryContainer,
+        },
+        false: {
+          backgroundColor: theme.scheme.onSurface,
+        },
+      },
+    },
+  },
+
+  // --- Icon ---
+  icon: {
+    zIndex: 1,
+
+    variants: {
+      active: {
+        true: {
+          color: theme.scheme.onSecondaryContainer,
+        },
+        false: {
+          color: theme.scheme.onSurfaceVariant,
+        },
+      },
+    },
+  },
+
+  // --- Label ---
+  label: {
+    flex: 1,
+    zIndex: 1,
+
+    variants: {
+      active: {
+        true: {
+          color: theme.scheme.onSecondaryContainer,
+          fontWeight: '700',
+        },
+        false: {
+          color: theme.scheme.onSurfaceVariant,
+          fontWeight: '500',
+        },
+      },
+    },
+  },
+
+  // --- Badge ---
+  badge: {
+    color: theme.scheme.onSurfaceVariant,
+    zIndex: 1,
+  },
+
+  badgeContainer: {
+    marginStart: 'auto',
+  },
+
+  // --- Section label ---
+  sectionLabelContainer: {
+    paddingHorizontal: HEADLINE_HORIZONTAL_PADDING,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+
+  sectionLabel: {
+    color: theme.scheme.onSurfaceVariant,
+  },
+}));
+
+// =============================================================================
+// Exports
+// =============================================================================
+
+export type {
+  NavigationDrawerBadgeProps,
+  NavigationDrawerIconProps,
+  NavigationDrawerItemProps,
+  NavigationDrawerLabelProps,
+  NavigationDrawerProps,
+  NavigationDrawerSectionLabelProps,
+  NavigationDrawerVariant,
+};
+export {
+  NavigationDrawer,
+  NavigationDrawerBadge,
+  NavigationDrawerIcon,
+  NavigationDrawerItem,
+  NavigationDrawerLabel,
+  NavigationDrawerSectionLabel,
+};
