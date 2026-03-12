@@ -61,7 +61,11 @@
     "example": "bun run build && bun run --cwd example start",
     "example:ios": "bun run build && bun run --cwd example ios",
     "example:android": "bun run build && bun run --cwd example android",
-    "example:web": "bun run build && bun run --cwd example web"
+    "example:web": "bun run build && bun run --cwd example web",
+    "extract:pages": "bun run --cwd=material extract:pages",
+    "extract:sitemap": "bun run --cwd=material extract:sitemap",
+    "validate:docs": "bun run --cwd=material validate:docs",
+    "query:docs": "bun run --cwd=material query:docs"
   },
   "keywords": [
     "react-native",

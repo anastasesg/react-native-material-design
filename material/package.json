@@ -1,0 +1,13 @@
+{
+  "name": "material",
+  "private": true,
+  "scripts": {
+    "extract:pages": "bun scripts/extract-m3-pages.ts",
+    "extract:sitemap": "bun scripts/extract-m3-sitemap.ts",
+    "validate:docs": "bun scripts/check-m3-docs.ts",
+    "query:docs": "bun scripts/query-m3-docs.ts"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}
