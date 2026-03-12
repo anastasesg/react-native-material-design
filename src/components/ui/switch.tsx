@@ -19,7 +19,8 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime, withUnistyles } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { childGuard, warnUnexpectedChild } from '../../utilities';
 import { Icon } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -32,12 +33,12 @@ const UniIcon = withUnistyles(Icon);
 type SwitchIconMode = 'none' | 'selected' | 'both';
 
 type SwitchProps = {
-  /** Current value (controlled). */
-  value?: boolean;
-  /** Initial value (uncontrolled). Defaults to false. */
-  defaultValue?: boolean;
+  /** Whether the switch is on (controlled). */
+  selected?: boolean;
+  /** Initial selected state (uncontrolled). Defaults to false. */
+  defaultSelected?: boolean;
   /** Called when the user toggles the switch. */
-  onChange?: (value: boolean) => void;
+  onSelectedChange?: (selected: boolean) => void;
   /** Icon configuration: 'none' (default), 'selected' (icon on selected only), 'both'. */
   icon?: SwitchIconMode;
   /** Disables the switch. */
@@ -51,6 +52,10 @@ type SwitchProps = {
 
 type SwitchToggleProps = {
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the track. */
+  trackStyle?: StyleProp<ViewStyle>;
+  /** Style applied to the handle (thumb). */
+  handleStyle?: StyleProp<ViewStyle>;
   /** @internal Injected by parent Switch. */
   __internal__switchSelected?: boolean;
   __internal__switchIconMode?: SwitchIconMode;
@@ -88,23 +93,29 @@ const ICON_SIZE = 16;
 // At selected: handle center = TRACK_WIDTH - TRACK_HEIGHT/2
 const HANDLE_TRAVEL = TRACK_WIDTH - TRACK_HEIGHT; // 20dp
 
+const isSwitchToggle = childGuard<SwitchToggleProps>('SwitchToggle');
+const isSwitchLabel = childGuard<SwitchLabelProps>('SwitchLabel');
+const SWITCH_CHILDREN = ['SwitchToggle', 'SwitchLabel'];
+
 // =============================================================================
 // Switch (parent — touch target + state management)
 // =============================================================================
 
 function Switch({
-  value: valueProp,
-  defaultValue = false,
-  onChange,
+  selected: selectedProp,
+  defaultSelected = false,
+  onSelectedChange,
   icon = 'none',
   disabled = false,
   accessibilityLabel,
   style,
   children,
 }: SwitchProps) {
-  const isControlled = valueProp !== undefined;
-  const [internalValue, setInternalValue] = React.useState(defaultValue);
-  const selected = isControlled ? valueProp : internalValue;
+  const [selected, setSelected] = useControllableState({
+    value: selectedProp,
+    defaultValue: defaultSelected,
+    onChange: onSelectedChange,
+  });
 
   const { progress, handlers } = useInteraction('press', 'hover', 'focus');
   const selectProgress = useSharedValue(selected ? 1 : 0);
@@ -117,12 +128,8 @@ function Switch({
 
   const handlePress = React.useCallback(() => {
     if (disabled) return;
-    const next = !selected;
-    if (!isControlled) {
-      setInternalValue(next);
-    }
-    onChange?.(next);
-  }, [disabled, selected, isControlled, onChange]);
+    setSelected((prev) => !prev);
+  }, [disabled, setSelected]);
 
   return (
     <RNPressable
@@ -138,17 +145,22 @@ function Switch({
       accessibilityLabel={accessibilityLabel}
     >
       {React.Children.map(children, (child) => {
-        if (React.isValidElement(child)) {
-          return React.cloneElement(child, {
-            __internal__switchSelected: selected,
-            __internal__switchIconMode: icon,
-            __internal__switchDisabled: disabled,
-            __internal__switchPressProgress: progress.press,
-            __internal__switchSelectProgress: selectProgress,
-            __internal__switchHoverProgress: progress.hover,
-            __internal__switchFocusProgress: progress.focus,
-          } as any);
-        }
+        if (!React.isValidElement(child)) return child;
+
+        const internal = {
+          __internal__switchSelected: selected,
+          __internal__switchIconMode: icon,
+          __internal__switchDisabled: disabled,
+          __internal__switchPressProgress: progress.press,
+          __internal__switchSelectProgress: selectProgress,
+          __internal__switchHoverProgress: progress.hover,
+          __internal__switchFocusProgress: progress.focus,
+        };
+
+        if (isSwitchToggle(child)) return React.cloneElement(child, internal);
+        if (isSwitchLabel(child)) return React.cloneElement(child, internal);
+
+        warnUnexpectedChild('Switch', child, SWITCH_CHILDREN);
         return child;
       })}
     </RNPressable>
@@ -161,6 +173,8 @@ function Switch({
 
 function SwitchToggle({
   style,
+  trackStyle,
+  handleStyle,
   __internal__switchSelected = false,
   __internal__switchIconMode = 'none',
   __internal__switchDisabled = false,
@@ -345,12 +359,12 @@ function SwitchToggle({
       <Animated.View style={[styles.stateLayer, animatedStateLayerStyle]} />
 
       {/* Track */}
-      <Animated.View style={[styles.track, animatedTrackColor]}>
+      <Animated.View style={[styles.track, animatedTrackColor, trackStyle]}>
         {/* Track outline */}
         <Animated.View style={[styles.trackOutline, animatedOutlineStyle]} />
 
         {/* Handle */}
-        <Animated.View style={[styles.handle, animatedHandleStyle, animatedHandleColor]}>
+        <Animated.View style={[styles.handle, animatedHandleStyle, animatedHandleColor, handleStyle]}>
           {/* Icon — uses withUnistyles for theme-reactive color prop */}
           {iconMode !== 'none' && (
             <Animated.View style={[styles.iconContainer, animatedIconStyle]}>
@@ -455,6 +469,10 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Switch.displayName = 'Switch';
+SwitchToggle.displayName = 'SwitchToggle';
+SwitchLabel.displayName = 'SwitchLabel';
 
 export type { SwitchIconMode, SwitchLabelProps, SwitchProps, SwitchToggleProps };
 export { Switch, SwitchLabel, SwitchToggle };

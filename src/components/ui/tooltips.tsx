@@ -10,6 +10,7 @@ import { Dimensions, Modal, Pressable as RNPressable, View } from 'react-native'
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
+import { useControllableState } from '../../hooks';
 import { Button, ButtonLabel } from './button';
 import { Text } from './text';
 
@@ -24,8 +25,9 @@ type TooltipAction = {
 
 type PlainTooltipProps = {
   message: string;
-  visible?: boolean;
-  onVisibleChange?: (visible: boolean) => void;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 };
@@ -35,8 +37,9 @@ type RichTooltipProps = {
   supportingText: string;
   primaryAction?: TooltipAction;
   secondaryAction?: TooltipAction;
-  visible?: boolean;
-  onVisibleChange?: (visible: boolean) => void;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 };
@@ -109,17 +112,19 @@ function computeTooltipPosition(
 // PlainTooltip
 // =============================================================================
 
-function PlainTooltip({ message, visible: controlledVisible, onVisibleChange, style, children }: PlainTooltipProps) {
-  const isControlled = controlledVisible !== undefined;
-  const [internalVisible, setInternalVisible] = React.useState(false);
-  const visible = isControlled ? controlledVisible : internalVisible;
-
-  const setVisible = React.useCallback((v: boolean) => {
-    if (!isControlled) {
-      setInternalVisible(v);
-    }
-    onVisibleChange?.(v);
-  }, [isControlled, onVisibleChange]);
+function PlainTooltip({
+  message,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  style,
+  children,
+}: PlainTooltipProps) {
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
 
   const [mounted, setMounted] = React.useState(false);
   const [anchorLayout, setAnchorLayout] = React.useState<LayoutRectangle | null>(null);
@@ -158,7 +163,7 @@ function PlainTooltip({ message, visible: controlledVisible, onVisibleChange, st
   // Open/close animation
   React.useEffect(() => {
     const theme = UnistylesRuntime.getTheme();
-    if (visible) {
+    if (open) {
       measureAnchor();
       setMounted(true);
       containerOpacity.value = withTiming(1, {
@@ -168,7 +173,7 @@ function PlainTooltip({ message, visible: controlledVisible, onVisibleChange, st
 
       // Auto-dismiss after timeout
       dismissTimer.current = setTimeout(() => {
-        setVisible(false);
+        setOpen(false);
       }, AUTO_DISMISS_DURATION);
     } else if (mounted) {
       containerOpacity.value = withTiming(
@@ -189,19 +194,19 @@ function PlainTooltip({ message, visible: controlledVisible, onVisibleChange, st
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [open]);
 
   const animatedContainerStyle = useAnimatedStyle(() => ({
     opacity: containerOpacity.value,
   }));
 
   const handleDismiss = React.useCallback(() => {
-    setVisible(false);
-  }, [setVisible]);
+    setOpen(false);
+  }, [setOpen]);
 
   const handleLongPress = React.useCallback(() => {
-    setVisible(true);
-  }, [setVisible]);
+    setOpen(true);
+  }, [setOpen]);
 
   const tooltipPosition = React.useMemo(
     () => (anchorLayout ? computeTooltipPosition(anchorLayout, tooltipSize, PLAIN_ANCHOR_GAP) : undefined),
@@ -246,22 +251,18 @@ function RichTooltip({
   supportingText,
   primaryAction,
   secondaryAction,
-  visible: controlledVisible,
-  onVisibleChange,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   style,
   children,
 }: RichTooltipProps) {
-  const isControlled = controlledVisible !== undefined;
-  const [internalVisible, setInternalVisible] = React.useState(false);
-  const visible = isControlled ? controlledVisible : internalVisible;
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
   const hasActions = !!(primaryAction || secondaryAction);
-
-  const setVisible = React.useCallback((v: boolean) => {
-    if (!isControlled) {
-      setInternalVisible(v);
-    }
-    onVisibleChange?.(v);
-  }, [isControlled, onVisibleChange]);
 
   const [mounted, setMounted] = React.useState(false);
   const [anchorLayout, setAnchorLayout] = React.useState<LayoutRectangle | null>(null);
@@ -300,7 +301,7 @@ function RichTooltip({
   // Open/close animation
   React.useEffect(() => {
     const theme = UnistylesRuntime.getTheme();
-    if (visible) {
+    if (open) {
       measureAnchor();
       setMounted(true);
       containerOpacity.value = withTiming(1, {
@@ -311,7 +312,7 @@ function RichTooltip({
       // Auto-dismiss only if no actions (per M3 accessibility guidelines)
       if (!hasActions) {
         dismissTimer.current = setTimeout(() => {
-          setVisible(false);
+          setOpen(false);
         }, AUTO_DISMISS_DURATION);
       }
     } else if (mounted) {
@@ -333,29 +334,29 @@ function RichTooltip({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [open]);
 
   const animatedContainerStyle = useAnimatedStyle(() => ({
     opacity: containerOpacity.value,
   }));
 
   const handleDismiss = React.useCallback(() => {
-    setVisible(false);
-  }, [setVisible]);
+    setOpen(false);
+  }, [setOpen]);
 
   const handleLongPress = React.useCallback(() => {
-    setVisible(true);
-  }, [setVisible]);
+    setOpen(true);
+  }, [setOpen]);
 
   const handlePrimaryAction = React.useCallback(() => {
     primaryAction?.onPress();
-    setVisible(false);
-  }, [primaryAction, setVisible]);
+    setOpen(false);
+  }, [primaryAction, setOpen]);
 
   const handleSecondaryAction = React.useCallback(() => {
     secondaryAction?.onPress();
-    setVisible(false);
-  }, [secondaryAction, setVisible]);
+    setOpen(false);
+  }, [secondaryAction, setOpen]);
 
   const tooltipPosition = React.useMemo(
     () => (anchorLayout ? computeTooltipPosition(anchorLayout, tooltipSize, RICH_ANCHOR_GAP) : undefined),
@@ -479,6 +480,9 @@ const tooltipStyles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+PlainTooltip.displayName = 'PlainTooltip';
+RichTooltip.displayName = 'RichTooltip';
 
 export type { PlainTooltipProps, RichTooltipProps, TooltipAction };
 export { PlainTooltip, RichTooltip };

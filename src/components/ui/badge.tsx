@@ -15,11 +15,11 @@ import { Text } from './text';
 // Types
 // =============================================================================
 
-type BadgeType = 'small' | 'large';
+type BadgeSize = 'small' | 'large';
 
 type BadgeProps = {
-  /** Badge type: "small" (6dp dot) or "large" (16dp with label). */
-  type?: BadgeType;
+  /** Badge size: "small" (6dp dot) or "large" (16dp with label). */
+  size?: BadgeSize;
 
   /**
    * Numeric count for large badges. Numbers > 999 display as "999+".
@@ -61,8 +61,8 @@ function formatBadgeLabel(count: number | undefined, label: string | undefined):
   return undefined;
 }
 
-function getAccessibilityLabel(type: BadgeType, count: number | undefined, label: string | undefined): string {
-  if (type === 'small') return 'New notification';
+function getAccessibilityLabel(size: BadgeSize, count: number | undefined, label: string | undefined): string {
+  if (size === 'small') return 'New notification';
   if (count !== undefined) return String(count);
   if (label !== undefined) return label;
   return 'New notification';
@@ -72,11 +72,11 @@ function getAccessibilityLabel(type: BadgeType, count: number | undefined, label
 // Component
 // =============================================================================
 
-function Badge({ type = 'small', count, label, visible = true, children, style, badgeStyle }: BadgeProps) {
-  const displayLabel = type === 'large' ? formatBadgeLabel(count, label) : undefined;
-  const accessibilityLabel = getAccessibilityLabel(type, count, label);
+function Badge({ size = 'small', count, label, visible = true, children, style, badgeStyle }: BadgeProps) {
+  const displayLabel = size === 'large' ? formatBadgeLabel(count, label) : undefined;
+  const accessibilityLabel = getAccessibilityLabel(size, count, label);
 
-  styles.useVariants({ type, visible });
+  styles.useVariants({ size, visible });
 
   return (
     <View style={[styles.wrapper, style]}>
@@ -118,7 +118,7 @@ const styles = StyleSheet.create((theme) => ({
     overflow: 'hidden',
 
     variants: {
-      type: {
+      size: {
         small: {
           width: 6,
           height: 6,
@@ -152,5 +152,7 @@ const styles = StyleSheet.create((theme) => ({
 // Exports
 // =============================================================================
 
-export type { BadgeProps, BadgeType };
+Badge.displayName = 'Badge';
+
+export type { BadgeProps, BadgeSize };
 export { Badge };

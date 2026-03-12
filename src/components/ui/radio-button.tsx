@@ -19,7 +19,8 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { childGuard, warnUnexpectedChild } from '../../utilities';
 import { Text, type TextProps } from './text';
 
 // =============================================================================
@@ -47,8 +48,8 @@ type RadioButtonProps = {
   selected?: boolean;
   /** Initial selected state (uncontrolled, standalone use). Defaults to false. */
   defaultSelected?: boolean;
-  /** Called when the user taps the radio button. */
-  onSelect?: (selected: boolean) => void;
+  /** Called when the user taps the radio button (standalone use). */
+  onSelectedChange?: (selected: boolean) => void;
   /** Disables the radio button. */
   disabled?: boolean;
   /** Accessibility label for the touchable. */
@@ -60,6 +61,8 @@ type RadioButtonProps = {
 
 type RadioButtonToggleProps = {
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the outer ring container. */
+  containerStyle?: StyleProp<ViewStyle>;
   /** @internal Injected by parent RadioButton. */
   __internal__radioSelected?: boolean;
   __internal__radioDisabled?: boolean;
@@ -106,20 +109,15 @@ function RadioButtonGroup({
   style,
   children,
 }: RadioButtonGroupProps) {
-  const isControlled = valueProp !== undefined;
-  const [internalValue, setInternalValue] = React.useState(defaultValue);
-  const value = isControlled ? valueProp : internalValue;
-
-  const handleSelect = React.useCallback((itemValue: string) => {
-    if (!isControlled) {
-      setInternalValue(itemValue);
-    }
-    onValueChange?.(itemValue);
-  }, [isControlled, onValueChange]);
+  const [value, setValue] = useControllableState({
+    value: valueProp,
+    defaultValue: defaultValue ?? '',
+    onChange: onValueChange,
+  });
 
   const contextValue = React.useMemo<RadioGroupContextValue>(
-    () => ({ value, onSelect: handleSelect, disabled }),
-    [value, handleSelect, disabled],
+    () => ({ value, onSelect: setValue, disabled }),
+    [value, setValue, disabled],
   );
 
   return (
@@ -131,6 +129,10 @@ function RadioButtonGroup({
   );
 }
 
+const isRadioButtonToggle = childGuard<RadioButtonToggleProps>('RadioButtonToggle');
+const isRadioButtonLabel = childGuard<RadioButtonLabelProps>('RadioButtonLabel');
+const RADIO_BUTTON_CHILDREN = ['RadioButtonToggle', 'RadioButtonLabel'];
+
 // =============================================================================
 // RadioButton (parent — touch target + state management)
 // =============================================================================
@@ -139,7 +141,7 @@ function RadioButton({
   value: itemValue,
   selected: selectedProp,
   defaultSelected = false,
-  onSelect,
+  onSelectedChange,
   disabled: disabledProp = false,
   accessibilityLabel,
   style,
@@ -151,9 +153,12 @@ function RadioButton({
   const isInGroup = group !== null && itemValue !== undefined;
   const disabled = isInGroup ? group.disabled || disabledProp : disabledProp;
 
-  const isControlled = isInGroup || selectedProp !== undefined;
-  const [internalSelected, setInternalSelected] = React.useState(defaultSelected);
-  const selected = isInGroup ? group.value === itemValue : isControlled ? selectedProp! : internalSelected;
+  const [standaloneSelected, setStandaloneSelected] = useControllableState({
+    value: isInGroup ? undefined : selectedProp,
+    defaultValue: defaultSelected,
+    onChange: isInGroup ? undefined : onSelectedChange,
+  });
+  const selected = isInGroup ? group.value === itemValue : standaloneSelected;
 
   const { progress, handlers } = useInteraction('press');
   const selectProgress = useSharedValue(selected ? 1 : 0);
@@ -174,13 +179,10 @@ function RadioButton({
       if (isInGroup) {
         group.onSelect(itemValue!);
       } else {
-        if (!isControlled) {
-          setInternalSelected(true);
-        }
-        onSelect?.(true);
+        setStandaloneSelected(true);
       }
     }
-  }, [disabled, selected, isInGroup, group, itemValue, isControlled, onSelect]);
+  }, [disabled, selected, isInGroup, group, itemValue, setStandaloneSelected]);
 
   return (
     <RNPressable
@@ -196,14 +198,19 @@ function RadioButton({
       accessibilityLabel={accessibilityLabel}
     >
       {React.Children.map(children, (child) => {
-        if (React.isValidElement(child)) {
-          return React.cloneElement(child, {
-            __internal__radioSelected: selected,
-            __internal__radioDisabled: disabled,
-            __internal__radioPressProgress: progress.press,
-            __internal__radioSelectProgress: selectProgress,
-          } as any);
-        }
+        if (!React.isValidElement(child)) return child;
+
+        const internal = {
+          __internal__radioSelected: selected,
+          __internal__radioDisabled: disabled,
+          __internal__radioPressProgress: progress.press,
+          __internal__radioSelectProgress: selectProgress,
+        };
+
+        if (isRadioButtonToggle(child)) return React.cloneElement(child, internal);
+        if (isRadioButtonLabel(child)) return React.cloneElement(child, internal);
+
+        warnUnexpectedChild('RadioButton', child, RADIO_BUTTON_CHILDREN);
         return child;
       })}
     </RNPressable>
@@ -216,6 +223,7 @@ function RadioButton({
 
 function RadioButtonToggle({
   style,
+  containerStyle,
   __internal__radioSelected = false,
   __internal__radioDisabled = false,
   __internal__radioPressProgress,
@@ -272,7 +280,7 @@ function RadioButtonToggle({
       <Animated.View style={[styles.stateLayer, animatedStateStyle]} />
 
       {/* Outer ring */}
-      <Animated.View style={[styles.outerRing, animatedRingStyle]} />
+      <Animated.View style={[styles.outerRing, animatedRingStyle, containerStyle]} />
 
       {/* Inner dot (visible when selected) */}
       <Animated.View style={[styles.innerDot, animatedDotStyle]} />
@@ -373,6 +381,11 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+RadioButton.displayName = 'RadioButton';
+RadioButtonGroup.displayName = 'RadioButtonGroup';
+RadioButtonToggle.displayName = 'RadioButtonToggle';
+RadioButtonLabel.displayName = 'RadioButtonLabel';
 
 export type { RadioButtonGroupProps, RadioButtonLabelProps, RadioButtonProps, RadioButtonToggleProps };
 export { RadioButton, RadioButtonGroup, RadioButtonLabel, RadioButtonToggle };

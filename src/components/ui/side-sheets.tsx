@@ -17,6 +17,7 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { useControllableState } from '../../hooks';
 import { Divider } from './divider';
 import { IconButton } from './icon-button';
 import { Text } from './text';
@@ -32,6 +33,8 @@ type SideSheetProps = {
   variant?: SideSheetVariant;
   /** Whether the sheet is open. */
   open?: boolean;
+  /** Default open state for uncontrolled mode. */
+  defaultOpen?: boolean;
   /** Called when the open state changes (close button, scrim tap, back button). */
   onOpenChange?: (open: boolean) => void;
   /** Headline text displayed at the top of the sheet. */
@@ -50,6 +53,10 @@ type SideSheetProps = {
   showActionDivider?: boolean;
   /** Style applied to the sheet container. */
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the scrim overlay (modal variant only). */
+  scrimStyle?: StyleProp<ViewStyle>;
+  /** Style applied to the scrollable content area. */
+  contentStyle?: StyleProp<ViewStyle>;
   /** Content rendered inside the sheet body (scrollable). */
   children?: React.ReactNode;
 };
@@ -73,7 +80,8 @@ const SCRIM_OPACITY = 0.32;
 
 function SideSheet({
   variant = 'modal',
-  open: controlledOpen,
+  open: openProp,
+  defaultOpen = false,
   onOpenChange,
   headline,
   showCloseButton = true,
@@ -83,18 +91,17 @@ function SideSheet({
   actions,
   showActionDivider = false,
   style,
+  scrimStyle,
+  contentStyle,
   children,
 }: SideSheetProps) {
   sheetStyles.useVariants({ variant });
 
-  const isControlled = controlledOpen !== undefined;
-  const [internalOpen, setInternalOpen] = React.useState(false);
-  const isOpen = isControlled ? controlledOpen : internalOpen;
-
-  const setOpen = React.useCallback((next: boolean) => {
-    if (!isControlled) setInternalOpen(next);
-    onOpenChange?.(next);
-  }, [isControlled, onOpenChange]);
+  const [isOpen, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
 
   const handleClose = React.useCallback(() => {
     onClose?.();
@@ -189,7 +196,7 @@ function SideSheet({
 
       {/* Scrollable content */}
       <ScrollView
-        style={sheetStyles.scrollContent}
+        style={[sheetStyles.scrollContent, contentStyle]}
         contentContainerStyle={sheetStyles.scrollContentContainer}
         showsVerticalScrollIndicator
         bounces={false}
@@ -217,7 +224,7 @@ function SideSheet({
           accessibilityRole="button"
           accessibilityLabel="Close side sheet"
         >
-          <Animated.View style={[sheetStyles.scrim, animatedScrimStyle]} />
+          <Animated.View style={[sheetStyles.scrim, animatedScrimStyle, scrimStyle]} />
         </RNPressable>
 
         {/* Sheet anchored to end edge */}
@@ -318,6 +325,8 @@ const sheetStyles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+SideSheet.displayName = 'SideSheet';
 
 export type { SideSheetProps, SideSheetVariant };
 export { SideSheet };

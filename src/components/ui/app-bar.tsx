@@ -8,6 +8,7 @@ import React from 'react';
 import { type StyleProp, type TextStyle, View, type ViewProps, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
+import { getDisplayName } from '../../utilities';
 import { IconButton, type IconButtonProps } from './icon-button';
 import type { SearchProps } from './search';
 import { Text } from './text';
@@ -77,7 +78,7 @@ function Appbar({
 
     childArray.forEach((child) => {
       if (!React.isValidElement(child)) return;
-      const displayName = (child.type as any).displayName;
+      const displayName = getDisplayName(child);
       if (displayName === APPBAR_SEARCH) {
         searchSlot = React.cloneElement(child, internalProps as any);
       } else if (displayName === APPBAR_ACTIONS) {
@@ -110,7 +111,7 @@ function Appbar({
 
       childArray.forEach((child) => {
         if (!React.isValidElement(child)) return;
-        const displayName = (child.type as any).displayName;
+        const displayName = getDisplayName(child);
         if (displayName === APPBAR_TITLE) {
           titleElement = React.cloneElement(child, internalProps as any);
         } else if (displayName === APPBAR_ACTIONS) {
@@ -136,7 +137,7 @@ function Appbar({
       let foundTitle = false;
       const smallLeadingChildren = childArray.map((child) => {
         if (!React.isValidElement(child)) return child;
-        const displayName = (child.type as any).displayName;
+        const displayName = getDisplayName(child);
         if (displayName === APPBAR_TITLE) {
           foundTitle = true;
           return React.cloneElement(child, internalProps as any);
@@ -165,7 +166,7 @@ function Appbar({
 
   childArray.forEach((child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = (child.type as any).displayName;
+    const displayName = getDisplayName(child);
     if (displayName === APPBAR_TITLE) {
       flexTitleElement = child;
       hasSubtitle = !!(child.props as AppbarTitleProps).supportingText;

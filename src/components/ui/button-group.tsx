@@ -5,7 +5,7 @@
 /// Accessibility: https://m3.material.io/components/button-groups/accessibility
 
 import React from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
@@ -251,20 +251,20 @@ function ConnectedItem({
   const pressShape = buildShape(pressedInnerCorner);
 
   // --- Press handlers (forward to child + drive interaction progress) ---
-  const handlePressIn = React.useCallback((event: any) => {
+  const handlePressIn = React.useCallback((event: GestureResponderEvent) => {
     if (isDisabled) return;
     pressHandlers.onPressIn(event);
     child.props.onPressIn?.(event);
   }, [isDisabled, pressHandlers, child.props]);
 
-  const handlePressOut = React.useCallback((event: any) => {
+  const handlePressOut = React.useCallback((event: GestureResponderEvent) => {
     if (isDisabled) return;
     pressHandlers.onPressOut(event);
     child.props.onPressOut?.(event);
   }, [isDisabled, pressHandlers, child.props]);
 
   // When group manages selection, intercept onPress to toggle via context
-  const handlePress = React.useCallback((event: any) => {
+  const handlePress = React.useCallback((event: GestureResponderEvent) => {
     if (isDisabled) return;
     if (selection) {
       selection.toggle(index);
@@ -285,10 +285,11 @@ function ConnectedItem({
 
   // When group manages selection, pass selected and intercept press
   if (selection) {
+    cloneProps.toggle = true;
     cloneProps.selected = isSelected;
     cloneProps.onPress = handlePress;
-    // Prevent child from running its own toggle logic by not passing onSelectionChange
-    cloneProps.onSelectionChange = undefined;
+    // Prevent child from running its own toggle logic by not passing onSelectedChange
+    cloneProps.onSelectedChange = undefined;
   }
 
   return (
@@ -373,6 +374,8 @@ const groupStyles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+ButtonGroup.displayName = 'ButtonGroup';
 
 export type { ButtonGroupProps, ButtonGroupSelectionMode, ButtonGroupShape, ButtonGroupSize, ButtonGroupVariant };
 export { ButtonGroup };

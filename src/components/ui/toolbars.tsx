@@ -9,6 +9,8 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
+import { getDisplayName } from '../../utilities';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -69,6 +71,8 @@ const FLOATING_BETWEEN_SPACE = 4;
 /** md.comp.toolbar.floating.fab.between-space = 8dp */
 const FLOATING_FAB_BETWEEN_SPACE = 8;
 
+const FAB_DISPLAY_NAME = 'FAB';
+
 // =============================================================================
 // DockedToolbar
 // =============================================================================
@@ -95,7 +99,7 @@ function FloatingToolbar({ colorStyle = 'standard', layout = 'horizontal', style
     let fab: React.ReactNode = null;
     const rest: React.ReactNode[] = [];
     React.Children.forEach(children, (child) => {
-      if (React.isValidElement(child) && (child.type as any)?.displayName === 'FAB') {
+      if (React.isValidElement(child) && getDisplayName(child) === FAB_DISPLAY_NAME) {
         // Clone with size="small" (56dp) per md.comp.toolbar.floating.fab.container = 56×56dp
         fab = React.cloneElement(child, { size: 'small' } as any);
       } else {
@@ -204,6 +208,9 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+DockedToolbar.displayName = 'DockedToolbar';
+FloatingToolbar.displayName = 'FloatingToolbar';
 
 export type { DockedToolbarProps, FloatingToolbarLayout, FloatingToolbarProps, ToolbarColorStyle };
 export { DockedToolbar, FloatingToolbar };

@@ -10,6 +10,8 @@ import { Modal, Pressable as RNPressable, ScrollView, View } from 'react-native'
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
+import { useControllableState } from '../../hooks';
+import { getDisplayName } from '../../utilities';
 import { Button, ButtonLabel } from './button';
 import { Divider } from './divider';
 import { Icon, type MaterialSymbol } from './icon';
@@ -24,9 +26,13 @@ type DialogVariant = 'basic' | 'full-screen';
 
 type DialogProps = {
   variant?: DialogVariant;
-  visible: boolean;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onDismiss?: () => void;
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the scrim overlay. */
+  scrimStyle?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 };
 
@@ -91,7 +97,21 @@ const DIALOG_ACTION = 'DialogAction';
 // Dialog (root)
 // =============================================================================
 
-function Dialog({ variant = 'basic', visible, onDismiss, style, children }: DialogProps) {
+function Dialog({
+  variant = 'basic',
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  onDismiss,
+  style,
+  scrimStyle,
+  children,
+}: DialogProps) {
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
   const [mounted, setMounted] = React.useState(false);
 
   const scrimOpacity = useSharedValue(0);
@@ -107,7 +127,7 @@ function Dialog({ variant = 'basic', visible, onDismiss, style, children }: Dial
 
   React.useEffect(() => {
     const { fastSpatial, fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    if (visible) {
+    if (open) {
       setMounted(true);
       scrimOpacity.value = withSpring(SCRIM_OPACITY, fastEffects);
       containerScale.value = withSpring(1, fastSpatial);
@@ -118,7 +138,7 @@ function Dialog({ variant = 'basic', visible, onDismiss, style, children }: Dial
       containerOpacity.value = withSpring(0, fastEffects, onCloseAnimationEnd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [open]);
 
   const animatedScrimStyle = useAnimatedStyle(() => ({
     opacity: scrimOpacity.value,
@@ -134,8 +154,9 @@ function Dialog({ variant = 'basic', visible, onDismiss, style, children }: Dial
   }));
 
   const handleDismiss = React.useCallback(() => {
+    setOpen(false);
     onDismiss?.();
-  }, [onDismiss]);
+  }, [setOpen, onDismiss]);
 
   if (!mounted) return null;
 
@@ -149,12 +170,12 @@ function Dialog({ variant = 'basic', visible, onDismiss, style, children }: Dial
   let headerActionSlot: React.ReactNode = null;
 
   const hasIcon = React.Children.toArray(children).some(
-    (child) => React.isValidElement(child) && (child.type as any).displayName === DIALOG_ICON,
+    (child) => React.isValidElement(child) && getDisplayName(child) === DIALOG_ICON,
   );
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const name = (child.type as any).displayName;
+    const name = getDisplayName(child);
 
     switch (name) {
       case DIALOG_ICON:
@@ -195,7 +216,7 @@ function Dialog({ variant = 'basic', visible, onDismiss, style, children }: Dial
           accessibilityRole="button"
           accessibilityLabel="Close dialog"
         >
-          <Animated.View style={[dialogStyles.scrim, animatedScrimStyle]} />
+          <Animated.View style={[dialogStyles.scrim, animatedScrimStyle, scrimStyle]} />
         </RNPressable>
 
         <Animated.View style={[dialogStyles.anchor, animatedFullScreenStyle]}>
@@ -221,7 +242,7 @@ function Dialog({ variant = 'basic', visible, onDismiss, style, children }: Dial
         accessibilityRole="button"
         accessibilityLabel="Close dialog"
       >
-        <Animated.View style={[dialogStyles.scrim, animatedScrimStyle]} />
+        <Animated.View style={[dialogStyles.scrim, animatedScrimStyle, scrimStyle]} />
       </RNPressable>
 
       <View style={dialogStyles.anchor} pointerEvents="box-none">
@@ -465,6 +486,8 @@ const dialogStyles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Dialog.displayName = 'Dialog';
 
 export type {
   DialogActionProps,

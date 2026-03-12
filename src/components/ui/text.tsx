@@ -117,5 +117,7 @@ const styles = StyleSheet.create((theme) => ({
   },
 }));
 
+Text.displayName = 'Text';
+
 export type { TextProps, TextSize, TextVariant };
 export { Text };

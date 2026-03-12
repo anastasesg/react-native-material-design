@@ -28,6 +28,8 @@ type CardProps = Omit<RNPressableProps, 'style' | 'children'> & {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
+  /** Style applied to the state layer overlay (actionable cards only). */
+  stateStyle?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 };
 
@@ -40,6 +42,7 @@ function Card({
   disabled = false,
   style,
   contentStyle,
+  stateStyle,
   children,
   onPress,
   onLongPress,
@@ -70,7 +73,7 @@ function Card({
       {...props}
     >
       <ShapeContainer shape="medium" style={[styles.container, contentStyle]}>
-        <StateLayer progress={progress} color="onSurface" disabled={disabled} />
+        <StateLayer progress={progress} color="onSurface" disabled={disabled} style={stateStyle} />
         {children}
       </ShapeContainer>
     </RNPressable>
@@ -142,6 +145,8 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Card.displayName = 'Card';
 
 export type { CardProps, CardVariant };
 export { Card };

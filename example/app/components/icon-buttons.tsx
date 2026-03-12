@@ -44,7 +44,8 @@ export default function IconButtonsScreen() {
           size={v.size}
           shape={v.shape}
           disabled={v.disabled}
-          {...(v.toggle ? { defaultSelected: false } : {})}
+          toggle={v.toggle}
+          defaultSelected={false}
         />
       )}
     />

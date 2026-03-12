@@ -21,6 +21,7 @@ import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import type { TypographyStyle } from '@/theme/typography';
 
+import { getDisplayName } from '../../utilities';
 import { Icon, type MaterialSymbol } from './icon';
 import { IconButton } from './icon-button';
 import { Text } from './text';
@@ -119,7 +120,7 @@ type TextFieldInputProps = {
   /** Maximum number of lines (multiline only). */
   numberOfLines?: number;
   /** Style applied to the TextInput. */
-  contentStyle?: StyleProp<TextStyle>;
+  style?: StyleProp<TextStyle>;
   /** @internal */
   __internal__disabled?: boolean;
   /** @internal */
@@ -224,7 +225,7 @@ function TextField({
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = (child.type as any).displayName;
+    const displayName = getDisplayName(child);
 
     switch (displayName) {
       case TEXT_FIELD_LEADING_ICON:
@@ -461,7 +462,7 @@ function TextFieldInput({
   autoCapitalize,
   multiline,
   numberOfLines,
-  contentStyle,
+  style,
   __internal__disabled = false,
   __internal__error = false,
   __internal__focused = false,
@@ -493,7 +494,7 @@ function TextFieldInput({
         onBlur={__internal__onBlur}
         onSubmitEditing={onSubmitEditing}
         placeholder={__internal__focused ? placeholder : undefined}
-        style={[styles.textInput, __internal__disabled && styles.disabled, contentStyle]}
+        style={[styles.textInput, __internal__disabled && styles.disabled, style]}
         editable={!__internal__disabled}
         autoFocus={autoFocus}
         secureTextEntry={secureTextEntry}
@@ -732,6 +733,8 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+TextField.displayName = 'TextField';
 
 export type {
   TextFieldInputProps,

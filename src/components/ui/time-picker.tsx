@@ -20,7 +20,7 @@ import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
 import { StateLayer } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { IconButton } from './icon-button';
@@ -40,8 +40,12 @@ type SelectionMode = 'hours' | 'minutes';
 type Period = 'AM' | 'PM';
 
 type TimePickerProps = {
-  /** Controls modal visibility. */
-  visible: boolean;
+  /** Controls modal visibility (controlled). */
+  open?: boolean;
+  /** Initial open state (uncontrolled). Default: false. */
+  defaultOpen?: boolean;
+  /** Called when the open state changes. */
+  onOpenChange?: (open: boolean) => void;
   /** Called when the picker is dismissed (Cancel or backdrop press). */
   onDismiss?: () => void;
   /** Called when the user confirms with OK. Receives the selected time. */
@@ -268,7 +272,9 @@ function PeriodButton({ label, selected, onPress, style }: PeriodButtonProps) {
 // =============================================================================
 
 function TimePicker({
-  visible,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   onDismiss,
   onConfirm,
   value: controlledValue,
@@ -278,6 +284,13 @@ function TimePicker({
   headline,
   style,
 }: TimePickerProps) {
+  // --- Open state (controlled/uncontrolled) ---
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
+
   // ---- Mount/unmount for exit animation ----
   const [mounted, setMounted] = React.useState(false);
 
@@ -294,7 +307,7 @@ function TimePicker({
 
   React.useEffect(() => {
     const { fastSpatial, fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    if (visible) {
+    if (open) {
       setMounted(true);
       scrimOpacity.value = withSpring(SCRIM_OPACITY, fastEffects);
       containerScale.value = withSpring(1, fastSpatial);
@@ -305,7 +318,7 @@ function TimePicker({
       containerOpacity.value = withSpring(0, fastEffects, onCloseAnimationEnd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [open]);
 
   const animatedScrimStyle = useAnimatedStyle(() => ({
     opacity: scrimOpacity.value,
@@ -333,7 +346,7 @@ function TimePicker({
 
   // Reset state when picker opens
   React.useEffect(() => {
-    if (visible) {
+    if (open) {
       const val = controlledValue ?? defaultValue;
       setHours(val.hours);
       setMinutes(val.minutes);
@@ -341,7 +354,7 @@ function TimePicker({
       setSelection('hours');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [open]);
 
   // Derived period
   const period: Period = hours >= 12 ? 'PM' : 'AM';
@@ -372,12 +385,14 @@ function TimePicker({
   }, []);
 
   const handleConfirm = React.useCallback(() => {
+    setOpen(false);
     onConfirm?.({ hours, minutes });
-  }, [onConfirm, hours, minutes]);
+  }, [setOpen, onConfirm, hours, minutes]);
 
   const handleDismiss = React.useCallback(() => {
+    setOpen(false);
     onDismiss?.();
-  }, [onDismiss]);
+  }, [setOpen, onDismiss]);
 
   const toggleMode = React.useCallback(() => {
     setMode((prev) => (prev === 'dial' ? 'input' : 'dial'));
@@ -1215,6 +1230,8 @@ const pickerStyles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+TimePicker.displayName = 'TimePicker';
 
 export type { Period, SelectionMode, TimePickerMode, TimePickerProps, TimeValue };
 export { TimePicker };

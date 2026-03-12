@@ -16,8 +16,36 @@ import { StyleSheet } from 'react-native-unistyles';
 import type { Scheme } from '@/theme/scheme';
 
 import { useInteraction } from '../../hooks';
+import { childGuard, warnUnexpectedChild } from '../../utilities';
 import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
-import { Icon, type MaterialSymbol } from './icon';
+import { Icon, type IconProps } from './icon';
+import { Text, type TextProps } from './text';
+
+// =============================================================================
+// Types & Constants
+// =============================================================================
+
+type FABSize = 'small' | 'medium' | 'large';
+type FABColorStyle =
+  | 'primaryContainer'
+  | 'secondaryContainer'
+  | 'tertiaryContainer'
+  | 'primary'
+  | 'secondary'
+  | 'tertiary';
+
+type FABLayout = 'standard' | 'extended';
+
+const FAB_ICON_SIZE: Record<FABSize, number> = { small: 24, medium: 28, large: 36 };
+
+const FAB_STATE_LAYER_COLOR: Record<FABColorStyle, keyof Scheme> = {
+  primaryContainer: 'onPrimaryContainer',
+  secondaryContainer: 'onSecondaryContainer',
+  tertiaryContainer: 'onTertiaryContainer',
+  primary: 'onPrimary',
+  secondary: 'onSecondary',
+  tertiary: 'onTertiary',
+};
 
 function getFABRestShapeToken(size: FABSize): ShapeToken {
   return size === 'large' ? 'xlarge' : 'large';
@@ -27,48 +55,59 @@ function getFABPressedShapeToken(size: FABSize): ShapeToken {
   return size === 'large' ? 'large' : 'medium';
 }
 
-type FABSize = 'small' | 'medium' | 'large';
-type FABColor = 'primaryContainer' | 'secondaryContainer' | 'tertiaryContainer' | 'primary' | 'secondary' | 'tertiary';
-
-const FAB_STATE_LAYER_COLOR: Record<FABColor, keyof Scheme> = {
-  primaryContainer: 'onPrimaryContainer',
-  secondaryContainer: 'onSecondaryContainer',
-  tertiaryContainer: 'onTertiaryContainer',
-  primary: 'onPrimary',
-  secondary: 'onSecondary',
-  tertiary: 'onTertiary',
-};
+// =============================================================================
+// Props
+// =============================================================================
 
 type FABProps = Omit<RNPressableProps, 'style' | 'children'> & {
-  name: MaterialSymbol;
+  children: React.ReactNode;
+  /** @default 'medium' */
   size?: FABSize;
-  color?: FABColor;
+  /** @default 'primaryContainer' */
+  colorStyle?: FABColorStyle;
   style?: StyleProp<ViewStyle>;
   containerStyle?: StyleProp<ViewStyle>;
 };
 
+type FABIconProps = IconProps & {
+  __internal__fabSize?: FABSize;
+  __internal__fabColorStyle?: FABColorStyle;
+  __internal__fabDisabled?: boolean;
+};
+
+type FABLabelProps = TextProps & {
+  __internal__fabSize?: FABSize;
+  __internal__fabColorStyle?: FABColorStyle;
+  __internal__fabDisabled?: boolean;
+};
+
+const isFABIcon = childGuard<FABIconProps>('FABIcon');
+const isFABLabel = childGuard<FABLabelProps>('FABLabel');
+const FAB_CHILDREN = ['FABIcon', 'FABLabel'];
+
+// =============================================================================
+// FAB
+// =============================================================================
+
 function FAB({
-  name,
   size = 'medium',
-  color = 'primaryContainer',
+  colorStyle = 'primaryContainer',
   style,
   containerStyle,
+  children,
   disabled = false,
   ...props
 }: FABProps) {
-  styles.useVariants({ size, color, disabled });
+  const childArray = React.Children.toArray(children);
+  const hasLabel = childArray.some((child) => React.isValidElement(child) && isFABLabel(child));
+  const layout: FABLayout = hasLabel ? 'extended' : 'standard';
+
+  styles.useVariants({ size, colorStyle, disabled, layout });
 
   const { progress, handlers } = useInteraction('press', 'hover', 'focus');
 
   const restShape = getFABRestShapeToken(size);
   const pressedShape = getFABPressedShapeToken(size);
-
-  const iconSize: number = React.useMemo(() => {
-    if (size === 'small') return 24;
-    if (size === 'medium') return 28;
-    if (size === 'large') return 36;
-    return 28;
-  }, [size]);
 
   return (
     <RNPressable
@@ -85,17 +124,73 @@ function FAB({
         progress={progress}
         style={[styles.container, containerStyle]}
       >
-        <StateLayer progress={progress} color={FAB_STATE_LAYER_COLOR[color]} disabled={disabled} />
-        <Icon name={name} size={iconSize} variant="outlined" style={styles.icon} />
+        <StateLayer progress={progress} color={FAB_STATE_LAYER_COLOR[colorStyle]} disabled={disabled} />
+        {React.Children.map(children, (child) => {
+          if (!React.isValidElement(child)) return child;
+
+          const internal = {
+            __internal__fabSize: size,
+            __internal__fabColorStyle: colorStyle,
+            __internal__fabDisabled: disabled,
+          };
+
+          if (isFABIcon(child)) return React.cloneElement(child, internal);
+          if (isFABLabel(child)) return React.cloneElement(child, internal);
+
+          warnUnexpectedChild('FAB', child, FAB_CHILDREN);
+          return child;
+        })}
       </ShapeContainer>
     </RNPressable>
   );
 }
 
-// ---------------------------------------------------------------------------
+// =============================================================================
+// FABIcon
+// =============================================================================
+
+function FABIcon({
+  __internal__fabSize = 'medium',
+  __internal__fabColorStyle = 'primaryContainer',
+  __internal__fabDisabled = false,
+  style,
+  ...props
+}: FABIconProps) {
+  styles.useVariants({
+    size: __internal__fabSize,
+    colorStyle: __internal__fabColorStyle,
+    disabled: __internal__fabDisabled,
+  });
+
+  const iconSize = FAB_ICON_SIZE[__internal__fabSize];
+
+  return <Icon size={iconSize} variant="outlined" style={[styles.icon, style]} {...props} />;
+}
+
+// =============================================================================
+// FABLabel
+// =============================================================================
+
+function FABLabel({
+  __internal__fabSize = 'medium',
+  __internal__fabColorStyle = 'primaryContainer',
+  __internal__fabDisabled = false,
+  style,
+  ...props
+}: FABLabelProps) {
+  styles.useVariants({
+    size: __internal__fabSize,
+    colorStyle: __internal__fabColorStyle,
+    disabled: __internal__fabDisabled,
+  });
+
+  return <Text style={[styles.label, style]} variant="title" size="medium" {...props} />;
+}
+
+// =============================================================================
 // Styles
-// ---------------------------------------------------------------------------
-// FAB uses a `color` variant axis because each color choice fully determines
+// =============================================================================
+// FAB uses a `colorStyle` variant axis because each color choice fully determines
 // the container, content, and state-layer colors via scheme color roles.
 //
 // Color mapping (from M3 spec):
@@ -109,12 +204,14 @@ function FAB({
 //   tertiary           | tertiary                 | onTertiary               | onTertiary
 //
 // Size mapping (M3 Expressive):
-//   Size   | Dimensions | Icon  | Shape
-//   -------|------------|-------|------------------
-//   small  | 56×56      | 24dp  | corner.large (16)
-//   medium | 80×80      | 28dp  | corner.large (16)
-//   large  | 96×96      | 36dp  | corner.xlarge (28)
-// ---------------------------------------------------------------------------
+//   Layout   | Size   | Dimensions       | Icon  | Shape              | Padding | Gap
+//   ---------|--------|------------------|-------|--------------------|---------|-----
+//   standard | small  | 56×56            | 24dp  | corner.large (16)  | —       | —
+//   standard | medium | 80×80            | 28dp  | corner.large (16)  | —       | —
+//   standard | large  | 96×96            | 36dp  | corner.xlarge (28) | —       | —
+//   extended | small  | 56×auto          | 24dp  | corner.large (16)  | 16dp    | 8dp
+//   extended | medium | 80×auto          | 28dp  | corner.large (16)  | 26dp    | 12dp
+//   extended | large  | 96×auto          | 36dp  | corner.xlarge (28) | 28dp    | 16dp
 
 const styles = StyleSheet.create((theme) => ({
   root: {
@@ -127,7 +224,7 @@ const styles = StyleSheet.create((theme) => ({
         medium: {},
         large: {},
       },
-      color: {
+      colorStyle: {
         primaryContainer: {},
         secondaryContainer: {},
         tertiaryContainer: {},
@@ -150,21 +247,11 @@ const styles = StyleSheet.create((theme) => ({
     overflow: 'hidden',
 
     variants: {
-      size: {
-        small: {
-          width: 56,
-          height: 56,
-        },
-        medium: {
-          width: 80,
-          height: 80,
-        },
-        large: {
-          width: 96,
-          height: 96,
-        },
+      layout: {
+        standard: {},
+        extended: { flexDirection: 'row' as const },
       },
-      color: {
+      colorStyle: {
         primaryContainer: { backgroundColor: theme.scheme.primaryContainer },
         secondaryContainer: { backgroundColor: theme.scheme.secondaryContainer },
         tertiaryContainer: { backgroundColor: theme.scheme.tertiaryContainer },
@@ -179,6 +266,17 @@ const styles = StyleSheet.create((theme) => ({
         false: {},
       },
     },
+
+    compoundVariants: [
+      // Standard: fixed square dimensions
+      { layout: 'standard', size: 'small', styles: { width: 56, height: 56 } },
+      { layout: 'standard', size: 'medium', styles: { width: 80, height: 80 } },
+      { layout: 'standard', size: 'large', styles: { width: 96, height: 96 } },
+      // Extended: flexible width with horizontal padding and gap
+      { layout: 'extended', size: 'small', styles: { height: 56, paddingHorizontal: 16, gap: 8 } },
+      { layout: 'extended', size: 'medium', styles: { height: 80, paddingHorizontal: 26, gap: 12 } },
+      { layout: 'extended', size: 'large', styles: { height: 96, paddingHorizontal: 28, gap: 16 } },
+    ],
   },
   icon: {
     variants: {
@@ -187,7 +285,31 @@ const styles = StyleSheet.create((theme) => ({
         medium: {},
         large: {},
       },
-      color: {
+      colorStyle: {
+        primaryContainer: { color: theme.scheme.onPrimaryContainer },
+        secondaryContainer: { color: theme.scheme.onSecondaryContainer },
+        tertiaryContainer: { color: theme.scheme.onTertiaryContainer },
+        primary: { color: theme.scheme.onPrimary },
+        secondary: { color: theme.scheme.onSecondary },
+        tertiary: { color: theme.scheme.onTertiary },
+      },
+      disabled: {
+        true: {
+          color: theme.scheme.onSurface,
+          opacity: theme.state.disabledContent,
+        },
+        false: {},
+      },
+    },
+  },
+  label: {
+    variants: {
+      size: {
+        small: {},
+        medium: {},
+        large: {},
+      },
+      colorStyle: {
         primaryContainer: { color: theme.scheme.onPrimaryContainer },
         secondaryContainer: { color: theme.scheme.onSecondaryContainer },
         tertiaryContainer: { color: theme.scheme.onTertiaryContainer },
@@ -206,7 +328,13 @@ const styles = StyleSheet.create((theme) => ({
   },
 }));
 
-FAB.displayName = 'FAB';
+// =============================================================================
+// Exports
+// =============================================================================
 
-export type { FABColor, FABProps, FABSize };
-export { FAB };
+FAB.displayName = 'FAB';
+FABIcon.displayName = 'FABIcon';
+FABLabel.displayName = 'FABLabel';
+
+export type { FABColorStyle, FABIconProps, FABLabelProps, FABProps, FABSize };
+export { FAB, FABIcon, FABLabel };

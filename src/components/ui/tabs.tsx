@@ -17,7 +17,8 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { getDisplayName } from '../../utilities';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -40,6 +41,10 @@ type TabsProps = {
   scrollable?: boolean;
 
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the active indicator bar. */
+  indicatorStyle?: StyleProp<ViewStyle>;
+  /** Style applied to the bottom divider line. */
+  dividerStyle?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 };
 
@@ -128,18 +133,15 @@ function Tabs({
   variant = 'primary',
   scrollable = false,
   style,
+  indicatorStyle,
+  dividerStyle,
   children,
 }: TabsProps) {
-  const isControlled = valueProp !== undefined;
-  const [internalValue, setInternalValue] = React.useState(defaultValue);
-  const value = isControlled ? valueProp : internalValue;
-
-  const handleSelect = React.useCallback((itemValue: string) => {
-    if (!isControlled) {
-      setInternalValue(itemValue);
-    }
-    onValueChange?.(itemValue);
-  }, [isControlled, onValueChange]);
+  const [value, setValue] = useControllableState({
+    value: valueProp,
+    defaultValue: defaultValue ?? '',
+    onChange: onValueChange,
+  });
 
   // Track tab layouts for indicator animation
   const tabLayoutsRef = React.useRef<Map<string, TabLayout>>(new Map());
@@ -183,8 +185,8 @@ function Tabs({
   }, [value, variant, indicatorX, indicatorWidth, indicatorReady]);
 
   const contextValue = React.useMemo<TabsContextValue>(
-    () => ({ value, onSelect: handleSelect, variant, scrollable, registerLayout }),
-    [value, handleSelect, variant, scrollable, registerLayout],
+    () => ({ value, onSelect: setValue, variant, scrollable, registerLayout }),
+    [value, setValue, variant, scrollable, registerLayout],
   );
 
   const indicatorHeight = variant === 'primary' ? PRIMARY_INDICATOR_HEIGHT : SECONDARY_INDICATOR_HEIGHT;
@@ -208,10 +210,11 @@ function Tabs({
             borderTopRightRadius: INDICATOR_BORDER_RADIUS_TOP,
           },
           indicatorAnimatedStyle,
+          indicatorStyle,
         ]}
       />
       {/* Divider — full width at the very bottom */}
-      <View style={styles.divider} />
+      <View style={[styles.divider, dividerStyle]} />
     </>
   );
 
@@ -254,7 +257,7 @@ function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps)
   let hasIcon = false;
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = (child.type as any)?.displayName;
+    const displayName = getDisplayName(child);
     if (displayName === 'TabIcon') hasIcon = true;
   });
 
@@ -289,7 +292,7 @@ function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps)
   // Clone children with __internal__ props
   const clonedChildren = React.Children.map(children, (child) => {
     if (!React.isValidElement(child)) return child;
-    const displayName = (child.type as any)?.displayName;
+    const displayName = getDisplayName(child);
     if (displayName === 'TabIcon' || displayName === 'TabLabel') {
       return React.cloneElement(child, {
         __internal__tabActive: active,
@@ -530,6 +533,8 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Tabs.displayName = 'Tabs';
 
 export type { TabIconProps, TabLabelProps, TabProps, TabsProps, TabVariant };
 export { Tab, TabIcon, TabLabel, Tabs };

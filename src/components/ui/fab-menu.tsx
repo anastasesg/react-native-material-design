@@ -18,8 +18,9 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useInteraction } from '../../hooks';
-import { FAB, type FABColor, type FABSize } from './fab';
+import { useControllableState, useInteraction } from '../../hooks';
+import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { FAB, type FABColorStyle, FABIcon, type FABSize } from './fab';
 import { Icon, type MaterialSymbol } from './icon';
 import { Text } from './text';
 
@@ -38,12 +39,14 @@ type FABMenuProps = {
   size?: FABSize;
   /** Controlled open state. When omitted, FABMenu manages its own state. */
   open?: boolean;
+  /** Default open state for uncontrolled mode. */
+  defaultOpen?: boolean;
   /** Called when the open state changes (works in both controlled and uncontrolled modes). */
   onOpenChange?: (open: boolean) => void;
   /** Style applied to the outer wrapper. */
   style?: StyleProp<ViewStyle>;
   /** Color style of the FAB trigger. Defaults to the container variant matching the color set. */
-  fabColor?: FABColor;
+  fabColorStyle?: FABColorStyle;
   /** Style applied to the FAB when the menu is closed. */
   fabStyle?: StyleProp<ViewStyle>;
   /** Menu items (2-6 FABMenuItem children). */
@@ -85,11 +88,14 @@ const STAGGER_DELAY = 30;
 const SCRIM_OPACITY = 0.32;
 
 /** Default FABMenu color → FAB container color mapping. */
-const FAB_COLOR_MAP: Record<FABMenuColor, FABColor> = {
+const FAB_COLOR_MAP: Record<FABMenuColor, FABColorStyle> = {
   primary: 'primaryContainer',
   secondary: 'secondaryContainer',
   tertiary: 'tertiaryContainer',
 };
+
+const isFABMenuItem = childGuard<FABMenuItemProps>('FABMenuItem');
+const FAB_MENU_CHILDREN = ['FABMenuItem'];
 
 // =============================================================================
 // FABMenu
@@ -99,21 +105,19 @@ function FABMenu({
   icon,
   color = 'primary',
   size = 'small',
-  open: controlledOpen,
+  open: openProp,
+  defaultOpen = false,
   onOpenChange,
   style,
-  fabColor,
+  fabColorStyle,
   fabStyle,
   children,
 }: FABMenuProps) {
-  const [internalOpen, setInternalOpen] = React.useState(false);
-  const isControlled = controlledOpen !== undefined;
-  const isOpen = isControlled ? controlledOpen : internalOpen;
-
-  const setOpen = React.useCallback((next: boolean) => {
-    if (!isControlled) setInternalOpen(next);
-    onOpenChange?.(next);
-  }, [isControlled, onOpenChange]);
+  const [isOpen, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
 
   const handleOpen = React.useCallback(() => setOpen(true), [setOpen]);
   const handleClose = React.useCallback(() => setOpen(false), [setOpen]);
@@ -135,13 +139,14 @@ function FABMenu({
     <View style={style}>
       {/* The FAB trigger — hidden when menu is open so close button takes its place */}
       <FAB
-        name={icon}
         size={size}
-        color={fabColor ?? FAB_COLOR_MAP[color]}
+        colorStyle={fabColorStyle ?? FAB_COLOR_MAP[color]}
         onPress={handleOpen}
         style={[fabStyle, isOpen && { opacity: 0 }]}
         disabled={isOpen}
-      />
+      >
+        <FABIcon name={icon} />
+      </FAB>
 
       {/* The menu overlay */}
       {isOpen && (
@@ -167,13 +172,17 @@ function FABMenu({
                 bounces={false}
               >
                 {childArray.map((child, index) => {
-                  if (React.isValidElement(child)) {
+                  if (!React.isValidElement(child)) return child;
+
+                  if (isFABMenuItem(child)) {
                     return React.cloneElement(child, {
                       __internal__color: color,
                       __internal__index: index,
                       __internal__open: isOpen,
-                    } as any);
+                    });
                   }
+
+                  warnUnexpectedChild('FABMenu', child, FAB_MENU_CHILDREN);
                   return child;
                 })}
               </ScrollView>
@@ -426,6 +435,9 @@ const menuStyles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+FABMenu.displayName = 'FABMenu';
+FABMenuItem.displayName = 'FABMenuItem';
 
 export type { FABMenuColor, FABMenuItemProps, FABMenuProps };
 export { FABMenu, FABMenuItem };

@@ -49,8 +49,8 @@ export default function SnackbarScreen() {
         action={v.action || undefined}
         onAction={() => setVisible(false)}
         showClose={v.showClose}
-        onDismiss={() => setVisible(false)}
-        visible={visible}
+        open={visible}
+        onOpenChange={setVisible}
         duration={v.action ? 0 : v.duration}
       />
     </View>

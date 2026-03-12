@@ -74,7 +74,7 @@ export default function AppBarsScreen() {
           {isSearch ? (
             <Appbar variant="search" elevation={v.elevation}>
               <AppbarSearch>
-                <Search expanded={searchExpanded} onExpandedChange={setSearchExpanded} layout="docked">
+                <Search open={searchExpanded} onOpenChange={setSearchExpanded} layout="docked">
                   <SearchLeadingIcon name="search" />
                   <SearchInput placeholder="Search" />
                   <SearchTrailingIcon name="mic" />

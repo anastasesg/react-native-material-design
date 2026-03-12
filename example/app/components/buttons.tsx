@@ -45,7 +45,8 @@ export default function ButtonsScreen() {
           size={v.size}
           shape={v.shape}
           disabled={v.disabled}
-          {...(v.toggle ? { defaultSelected: false } : {})}
+          toggle={v.toggle}
+          defaultSelected={false}
         >
           {v.icon && <ButtonIcon name="stars" variant="outlined" />}
           <ButtonLabel>{v.label}</ButtonLabel>

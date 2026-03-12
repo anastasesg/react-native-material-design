@@ -42,8 +42,8 @@ export default function SearchScreen() {
           <Search
             key={`${v.layout}-${v.disabled}`}
             layout={v.layout}
-            expanded={expanded}
-            onExpandedChange={setExpanded}
+            open={expanded}
+            onOpenChange={setExpanded}
             disabled={v.disabled}
           >
             <SearchLeadingIcon name="search" />

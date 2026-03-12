@@ -21,7 +21,8 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { getDisplayName } from '../../utilities';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -35,11 +36,11 @@ type NavigationRailProps = {
   /** How the expanded rail behaves: standard (inline, pushes content) or modal (overlay with scrim). */
   mode?: NavigationRailMode;
   /** Whether the rail is expanded (controlled). */
-  expanded?: boolean;
+  open?: boolean;
   /** Initial expanded state (uncontrolled). Default: false. */
-  defaultExpanded?: boolean;
+  defaultOpen?: boolean;
   /** Called when the expanded state changes. */
-  onExpandedChange?: (expanded: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
   /** Whether to show the built-in menu toggle button. Default: true. */
   showMenuButton?: boolean;
   /** Currently active item value (controlled). */
@@ -211,9 +212,9 @@ const IND_DY = E_IND_TOP - C_IND_TOP;
 
 function NavigationRail({
   mode = 'standard',
-  expanded: controlledExpanded,
-  defaultExpanded = false,
-  onExpandedChange,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   showMenuButton = true,
   value: valueProp,
   defaultValue,
@@ -232,32 +233,26 @@ function NavigationRail({
 
   const isModal = mode === 'modal';
 
-  // --- Controlled/uncontrolled expanded state ---
-  const isExpandedControlled = controlledExpanded !== undefined;
-  const [internalExpanded, setInternalExpanded] = React.useState(defaultExpanded);
-  const isExpanded = isExpandedControlled ? controlledExpanded : internalExpanded;
+  // --- Controlled/uncontrolled open (expanded) state ---
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
 
-  const setExpanded = React.useCallback((next: boolean) => {
-    if (!isExpandedControlled) setInternalExpanded(next);
-    onExpandedChange?.(next);
-  }, [isExpandedControlled, onExpandedChange]);
-
-  const toggleExpanded = React.useCallback(() => {
-    setExpanded(!isExpanded);
-  }, [setExpanded, isExpanded]);
+  const toggleOpen = React.useCallback(() => {
+    setOpen((prev) => !prev);
+  }, [setOpen]);
 
   // --- Controlled/uncontrolled value state ---
-  const isValueControlled = valueProp !== undefined;
-  const [internalValue, setInternalValue] = React.useState(defaultValue);
-  const value = isValueControlled ? valueProp : internalValue;
-
-  const handleSelect = React.useCallback((itemValue: string) => {
-    if (!isValueControlled) setInternalValue(itemValue);
-    onValueChange?.(itemValue);
-  }, [isValueControlled, onValueChange]);
+  const [value, handleSelect] = useControllableState({
+    value: valueProp,
+    defaultValue: defaultValue ?? '',
+    onChange: onValueChange,
+  });
 
   // --- Expand progress: 0 = collapsed, 1 = expanded ---
-  const expandProgress = useSharedValue(isExpanded && !isModal ? 1 : 0);
+  const expandProgress = useSharedValue(open && !isModal ? 1 : 0);
 
   // Context for items
   const ctx = React.useMemo<NavigationRailContextValue>(
@@ -284,8 +279,8 @@ function NavigationRail({
     if (isModal) return;
 
     const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    expandProgress.value = withSpring(isExpanded ? 1 : 0, fastEffects);
-  }, [isExpanded, isModal, expandProgress]);
+    expandProgress.value = withSpring(open ? 1 : 0, fastEffects);
+  }, [open, isModal, expandProgress]);
 
   // --- Modal mode: uses same expandProgress as standard, no mount/unmount ---
   const modalExpandProgress = useSharedValue(0);
@@ -326,13 +321,13 @@ function NavigationRail({
     if (!isModal) return;
 
     const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    modalExpandProgress.value = withSpring(isExpanded ? 1 : 0, fastEffects);
+    modalExpandProgress.value = withSpring(open ? 1 : 0, fastEffects);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded]);
+  }, [open]);
 
   const closeModal = React.useCallback(() => {
-    setExpanded(false);
-  }, [setExpanded]);
+    setOpen(false);
+  }, [setOpen]);
 
   // --- Shared render helpers ---
   const renderMenuButton = (
@@ -341,10 +336,10 @@ function NavigationRail({
   ) =>
     showMenuButton ? (
       <RNPressable
-        onPress={toggleExpanded}
+        onPress={toggleOpen}
         style={styles.menuButton}
         accessibilityRole="button"
-        accessibilityLabel={isExpanded ? 'Collapse navigation rail' : 'Expand navigation rail'}
+        accessibilityLabel={open ? 'Collapse navigation rail' : 'Expand navigation rail'}
       >
         <Animated.View style={[styles.menuIconLayer, closedStyle]}>
           <Icon name="menu" size={ICON_SIZE} style={styles.menuIcon} />
@@ -359,7 +354,7 @@ function NavigationRail({
     closedStyle: ReturnType<typeof useAnimatedStyle>,
     openStyle: ReturnType<typeof useAnimatedStyle>,
   ) => (
-    <View style={[styles.headerBase, isExpanded ? styles.headerExpanded : styles.headerCollapsed]}>
+    <View style={[styles.headerBase, open ? styles.headerExpanded : styles.headerCollapsed]}>
       {renderMenuButton(closedStyle, openStyle)}
       {header}
     </View>
@@ -412,11 +407,11 @@ function NavigationRail({
       </View>
 
       {/* Modal overlay — always mounted, hidden when collapsed via opacity */}
-      <Animated.View style={[styles.modalOverlay, modalOverlayOpacity]} pointerEvents={isExpanded ? 'auto' : 'none'}>
+      <Animated.View style={[styles.modalOverlay, modalOverlayOpacity]} pointerEvents={open ? 'auto' : 'none'}>
         <RNPressable
           style={StyleSheet.absoluteFillObject}
           onPress={closeModal}
-          disabled={!isExpanded}
+          disabled={!open}
           accessibilityRole="button"
           accessibilityLabel="Close navigation rail"
         >
@@ -524,7 +519,7 @@ function NavigationRailItem({ value: itemValue, accessibilityLabel, style, child
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = (child.type as any)?.displayName;
+    const displayName = getDisplayName(child);
     if (displayName === 'NavigationRailIcon') iconChild = child;
     else if (displayName === 'NavigationRailLabel') labelChild = child;
     else if (displayName === 'NavigationRailBadge') badgeChild = child;
@@ -882,6 +877,8 @@ const styles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+NavigationRail.displayName = 'NavigationRail';
 
 export type {
   NavigationRailBadgeProps,

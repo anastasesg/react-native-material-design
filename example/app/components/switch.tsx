@@ -26,7 +26,7 @@ export default function SwitchScreen() {
       schema={schema}
       config={config}
       preview={(v) => (
-        <Switch defaultValue={false} icon={v.icon} disabled={v.disabled}>
+        <Switch defaultSelected={false} icon={v.icon} disabled={v.disabled}>
           <SwitchToggle />
           <SwitchLabel>{v.label}</SwitchLabel>
         </Switch>

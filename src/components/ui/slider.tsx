@@ -1113,5 +1113,8 @@ const styles = StyleSheet.create((theme) => ({
 // Exports
 // =============================================================================
 
+Slider.displayName = 'Slider';
+RangeSlider.displayName = 'RangeSlider';
+
 export type { RangeSliderProps, SliderProps, SliderSize, SliderVariant };
 export { RangeSlider, Slider };

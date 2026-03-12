@@ -20,7 +20,8 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { getDisplayName } from '../../utilities';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -35,6 +36,8 @@ type NavigationDrawerProps = {
   variant?: NavigationDrawerVariant;
   /** Whether the drawer is open (controlled). */
   open?: boolean;
+  /** Default open state for uncontrolled mode. */
+  defaultOpen?: boolean;
   /** Called when the open state changes (scrim tap, back button). */
   onOpenChange?: (open: boolean) => void;
   /** Headline text displayed at the top of the drawer. */
@@ -47,6 +50,8 @@ type NavigationDrawerProps = {
   onValueChange?: (value: string) => void;
   /** Style applied to the drawer container. */
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the scrim overlay (modal variant only). */
+  scrimStyle?: StyleProp<ViewStyle>;
   /** Content rendered inside the drawer (NavigationDrawerItem, NavigationDrawerSectionLabel, Divider). */
   children?: React.ReactNode;
 };
@@ -58,6 +63,8 @@ type NavigationDrawerItemProps = {
   accessibilityLabel?: string;
   /** Style override. */
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the active indicator background. */
+  indicatorStyle?: StyleProp<ViewStyle>;
   /** Children: NavigationDrawerIcon, NavigationDrawerLabel, NavigationDrawerBadge. */
   children?: React.ReactNode;
 };
@@ -130,45 +137,39 @@ const ICON_LABEL_GAP = 12;
 
 function NavigationDrawer({
   variant = 'modal',
-  open: controlledOpen,
+  open: openProp,
+  defaultOpen = false,
   onOpenChange,
   headline,
   value: valueProp,
-  defaultValue,
+  defaultValue = '',
   onValueChange,
   style,
+  scrimStyle,
   children,
 }: NavigationDrawerProps) {
   styles.useVariants({ variant });
 
-  // --- Controlled/uncontrolled open state ---
-  const isOpenControlled = controlledOpen !== undefined;
-  const [internalOpen, setInternalOpen] = React.useState(false);
-  const isOpen = isOpenControlled ? controlledOpen : internalOpen;
+  // --- Open state ---
+  const [isOpen, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
 
   // `visible` keeps the component mounted during exit animations.
   const [visible, setVisible] = React.useState(false);
-
-  const setOpen = React.useCallback((next: boolean) => {
-    if (!isOpenControlled) setInternalOpen(next);
-    onOpenChange?.(next);
-  }, [isOpenControlled, onOpenChange]);
 
   const handleScrimPress = React.useCallback(() => {
     setOpen(false);
   }, [setOpen]);
 
-  // --- Controlled/uncontrolled value state ---
-  const isValueControlled = valueProp !== undefined;
-  const [internalValue, setInternalValue] = React.useState(defaultValue);
-  const value = isValueControlled ? valueProp : internalValue;
-
-  const handleSelect = React.useCallback((itemValue: string) => {
-    if (!isValueControlled) {
-      setInternalValue(itemValue);
-    }
-    onValueChange?.(itemValue);
-  }, [isValueControlled, onValueChange]);
+  // --- Value state ---
+  const [value, handleSelect] = useControllableState({
+    value: valueProp,
+    defaultValue: defaultValue,
+    onChange: onValueChange,
+  });
 
   const contextValue = React.useMemo<NavigationDrawerContextValue>(
     () => ({ value, onSelect: handleSelect }),
@@ -259,7 +260,7 @@ function NavigationDrawer({
           accessibilityRole="button"
           accessibilityLabel="Close navigation drawer"
         >
-          <Animated.View style={[styles.scrim, animatedScrimStyle]} />
+          <Animated.View style={[styles.scrim, animatedScrimStyle, scrimStyle]} />
         </RNPressable>
 
         {/* Drawer anchored to start edge */}
@@ -278,7 +279,13 @@ function NavigationDrawer({
 // NavigationDrawerItem (pressable item — icon + label + active indicator + badge)
 // =============================================================================
 
-function NavigationDrawerItem({ value: itemValue, accessibilityLabel, style, children }: NavigationDrawerItemProps) {
+function NavigationDrawerItem({
+  value: itemValue,
+  accessibilityLabel,
+  style,
+  indicatorStyle,
+  children,
+}: NavigationDrawerItemProps) {
   const ctx = React.useContext(NavigationDrawerContext);
   const active = ctx ? ctx.value === itemValue : false;
 
@@ -324,7 +331,7 @@ function NavigationDrawerItem({ value: itemValue, accessibilityLabel, style, chi
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = (child.type as any)?.displayName;
+    const displayName = getDisplayName(child);
     if (displayName === 'NavigationDrawerIcon') {
       iconEl = React.cloneElement(child, {
         __internal__drawerActive: active,
@@ -349,7 +356,7 @@ function NavigationDrawerItem({ value: itemValue, accessibilityLabel, style, chi
     >
       <View style={styles.itemContent}>
         {/* Active indicator background */}
-        <Animated.View style={[styles.indicator, indicatorAnimatedStyle]} />
+        <Animated.View style={[styles.indicator, indicatorAnimatedStyle, indicatorStyle]} />
         {/* State layer */}
         <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
         {/* Content row */}
@@ -583,6 +590,8 @@ const styles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+NavigationDrawer.displayName = 'NavigationDrawer';
 
 export type {
   NavigationDrawerBadgeProps,

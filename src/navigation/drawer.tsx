@@ -26,6 +26,7 @@ import {
   NavigationDrawerSectionLabel,
   type NavigationDrawerVariant,
 } from '../components/ui/navigation-drawer';
+import { getDisplayName } from '../utilities';
 
 // =============================================================================
 // Types
@@ -127,7 +128,7 @@ type DrawerAppbarProps = AppbarHeaderProps & InternalDrawerAppbarProps;
 function DrawerAppbar({ __internal__onMenuPress, __internal__title, children, ...props }: DrawerAppbarProps) {
   const enhancedChildren = React.Children.map(children, (child) => {
     if (!React.isValidElement(child)) return child;
-    const displayName = (child.type as any).displayName;
+    const displayName = getDisplayName(child);
 
     // Auto-wire menu action: AppbarAction with name="menu" gets onPress
     if (displayName === 'AppbarAction' && (child.props as any).name === 'menu') {

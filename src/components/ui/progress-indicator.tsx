@@ -394,5 +394,8 @@ const styles = StyleSheet.create((theme) => ({
 // Exports
 // =============================================================================
 
+LinearProgressIndicator.displayName = 'LinearProgressIndicator';
+CircularProgressIndicator.displayName = 'CircularProgressIndicator';
+
 export type { CircularProgressIndicatorProps, LinearProgressIndicatorProps };
 export { CircularProgressIndicator, LinearProgressIndicator };

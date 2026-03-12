@@ -39,7 +39,7 @@ function SelectControl({
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
       {field.options.map((option) => (
-        <Chip key={option} type="filter" selected={value === option} onSelectionChange={() => onChange(option)}>
+        <Chip key={option} type="filter" selected={value === option} onSelectedChange={() => onChange(option)}>
           <ChipLabel>{capitalize(option)}</ChipLabel>
         </Chip>
       ))}
@@ -57,7 +57,7 @@ function SwitchControl({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <Switch value={value} onChange={onChange}>
+    <Switch selected={value} onSelectedChange={onChange}>
       <SwitchToggle />
       <SwitchLabel>{field.label}</SwitchLabel>
     </Switch>

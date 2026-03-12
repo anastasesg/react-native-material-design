@@ -26,6 +26,7 @@ import {
   type NavigationRailMode,
   NavigationRailSectionLabel,
 } from '../components/ui/navigation-rail';
+import { getDisplayName } from '../utilities';
 
 // =============================================================================
 // Types
@@ -131,7 +132,7 @@ type RailAppbarProps = AppbarHeaderProps & InternalRailAppbarProps;
 function RailAppbar({ __internal__title, children, ...props }: RailAppbarProps) {
   const enhancedChildren = React.Children.map(children, (child) => {
     if (!React.isValidElement(child)) return child;
-    const displayName = (child.type as any).displayName;
+    const displayName = getDisplayName(child);
 
     // Auto-wire title: AppbarTitle without explicit title gets the screen label
     if (displayName === 'AppbarTitle') {
@@ -274,8 +275,8 @@ function RailNavigator({
           {/* NavigationRail handles collapsed/expanded internally */}
           <NavigationRailComponent
             mode={mode}
-            expanded={railExpanded}
-            onExpandedChange={handleExpandedChange}
+            open={railExpanded}
+            onOpenChange={handleExpandedChange}
             value={focusedRoute.name}
             onValueChange={handleValueChange}
             header={railHeader}

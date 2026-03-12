@@ -19,7 +19,8 @@ import { StyleSheet } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { childGuard, warnUnexpectedChild } from '../../utilities';
 import { ShapeContainer, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
@@ -45,7 +46,7 @@ type ChipProps = Omit<RNPressableProps, 'style' | 'children'> & {
   /** Enable selected state (filter and input chips only). */
   selected?: boolean;
   defaultSelected?: boolean;
-  onSelectionChange?: (selected: boolean) => void;
+  onSelectedChange?: (selected: boolean) => void;
 
   /** Avatar image source for input chips. */
   avatar?: ImageSourcePropType;
@@ -54,6 +55,11 @@ type ChipProps = Omit<RNPressableProps, 'style' | 'children'> & {
   containerStyle?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 };
+
+const isChipIcon = childGuard<ChipIconProps>('ChipIcon');
+const isChipLabel = childGuard<ChipLabelProps>('ChipLabel');
+const isChipTrailingIcon = childGuard<ChipTrailingIconProps>('ChipTrailingIcon');
+const CHIP_CHILDREN = ['ChipIcon', 'ChipLabel', 'ChipTrailingIcon'];
 
 // =============================================================================
 // Main Component
@@ -64,7 +70,7 @@ function Chip({
   elevation = 'flat',
   selected: selectedProp,
   defaultSelected,
-  onSelectionChange,
+  onSelectedChange,
   avatar,
   style,
   containerStyle,
@@ -74,10 +80,12 @@ function Chip({
   ...props
 }: ChipProps) {
   const isSelectable = type === 'filter' || type === 'input';
-  const isToggle =
-    isSelectable && (selectedProp !== undefined || onSelectionChange !== undefined || defaultSelected !== undefined);
-  const [selectedState, setSelectedState] = React.useState(defaultSelected ?? false);
-  const selected = isSelectable ? (selectedProp !== undefined ? selectedProp : selectedState) : false;
+  const [selectedState, setSelectedState] = useControllableState({
+    value: isSelectable ? selectedProp : undefined,
+    defaultValue: isSelectable ? (defaultSelected ?? false) : false,
+    onChange: isSelectable ? onSelectedChange : undefined,
+  });
+  const selected = isSelectable ? selectedState : false;
 
   // Determine if children contain a leading icon (for padding calculation)
   const hasLeadingIcon = React.useMemo(() => {
@@ -111,13 +119,11 @@ function Chip({
 
   const handlePress = React.useCallback((e: GestureResponderEvent) => {
     if (disabled) return;
-    if (isToggle) {
-      const next = !selected;
-      if (selectedProp === undefined) setSelectedState(next);
-      onSelectionChange?.(next);
+    if (isSelectable) {
+      setSelectedState((prev) => !prev);
     }
     onPress?.(e);
-  }, [disabled, isToggle, selected, selectedProp, onSelectionChange, onPress]);
+  }, [disabled, isSelectable, setSelectedState, onPress]);
 
   return (
     <RNPressable
@@ -152,14 +158,20 @@ function Chip({
         {showCheckmark && <Icon name="check" size={18} style={styles.leadingIcon} />}
 
         {React.Children.map(children, (child) => {
-          if (React.isValidElement(child)) {
-            return React.cloneElement(child, {
-              __internal__chipType: type,
-              __internal__chipElevation: elevation,
-              __internal__chipSelected: selected,
-              __internal__chipDisabled: disabled,
-            } as any);
-          }
+          if (!React.isValidElement(child)) return child;
+
+          const internal = {
+            __internal__chipType: type,
+            __internal__chipElevation: elevation,
+            __internal__chipSelected: selected,
+            __internal__chipDisabled: disabled,
+          };
+
+          if (isChipIcon(child)) return React.cloneElement(child, internal);
+          if (isChipLabel(child)) return React.cloneElement(child, internal);
+          if (isChipTrailingIcon(child)) return React.cloneElement(child, internal);
+
+          warnUnexpectedChild('Chip', child, CHIP_CHILDREN);
           return child;
         })}
 
@@ -501,6 +513,11 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Chip.displayName = 'Chip';
+ChipIcon.displayName = 'ChipIcon';
+ChipLabel.displayName = 'ChipLabel';
+ChipTrailingIcon.displayName = 'ChipTrailingIcon';
 
 export type { ChipElevation, ChipIconProps, ChipLabelProps, ChipProps, ChipTrailingIconProps, ChipType };
 export { Chip, ChipIcon, ChipLabel, ChipTrailingIcon };

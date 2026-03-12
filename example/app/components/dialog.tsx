@@ -53,7 +53,7 @@ export default function DialogScreen() {
         )}
       />
 
-      <Dialog variant={isFullScreen ? 'full-screen' : undefined} visible={visible} onDismiss={() => setVisible(false)}>
+      <Dialog variant={isFullScreen ? 'full-screen' : undefined} open={visible} onOpenChange={setVisible}>
         {v.icon && !isFullScreen && <DialogIcon name="info" />}
         <DialogHeadline>{v.headline}</DialogHeadline>
         {isFullScreen && <DialogAction onPress={() => setVisible(false)}>Save</DialogAction>}

@@ -85,5 +85,7 @@ const styles = StyleSheet.create((theme) => ({
 // Exports
 // =============================================================================
 
+Divider.displayName = 'Divider';
+
 export type { DividerOrientation, DividerProps, DividerVariant };
 export { Divider };

@@ -18,6 +18,7 @@ import {
 import { StyleSheet } from 'react-native-unistyles';
 
 import { useInteraction } from '../../hooks';
+import { getDisplayName } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
@@ -112,10 +113,6 @@ const CONTENT_SORT_ORDER = [LIST_ITEM_OVERLINE, LIST_ITEM_LABEL, LIST_ITEM_SUPPO
 // =============================================================================
 // Helpers
 // =============================================================================
-
-function getDisplayName(child: React.ReactElement): string | undefined {
-  return (child.type as any).displayName;
-}
 
 /**
  * Determine the number of "lines" for height calculation.
@@ -567,6 +564,10 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+List.displayName = 'List';
+ListItem.displayName = 'ListItem';
+ListDivider.displayName = 'ListDivider';
 
 export type {
   ListDividerProps,

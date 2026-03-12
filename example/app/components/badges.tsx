@@ -8,9 +8,9 @@ import type { ConfigSchema } from '../../components/demo/types';
 import { useConfig } from '../../components/demo/use-config';
 
 const schema = {
-  type: {
+  size: {
     type: 'select',
-    label: 'Type',
+    label: 'Size',
     options: ['small', 'large'],
     default: 'large',
   },
@@ -29,7 +29,7 @@ export default function BadgesScreen() {
       config={config}
       preview={(v) => (
         <View style={{ overflow: 'visible', padding: 12 }}>
-          <Badge type={v.type} count={v.type === 'large' ? v.count : undefined} visible={v.visible}>
+          <Badge size={v.size} count={v.size === 'large' ? v.count : undefined} visible={v.visible}>
             <IconButton name="notifications" variant="standard" />
           </Badge>
         </View>

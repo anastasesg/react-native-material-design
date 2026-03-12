@@ -10,7 +10,8 @@ import { Modal, Pressable as RNPressable, TextInput, useWindowDimensions, View }
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { getDisplayName } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Icon, type MaterialSymbol } from './icon';
 import { IconButton } from './icon-button';
@@ -23,16 +24,20 @@ import { Text } from './text';
 type SearchLayout = 'full-screen' | 'docked';
 
 type SearchProps = {
-  /** Whether the search view is expanded. */
-  expanded: boolean;
-  /** Called when expanded state should change. */
-  onExpandedChange: (expanded: boolean) => void;
+  /** Whether the search view is open (expanded). */
+  open?: boolean;
+  /** Default open state for uncontrolled mode. */
+  defaultOpen?: boolean;
+  /** Called when open state changes. */
+  onOpenChange?: (open: boolean) => void;
   /** Layout mode for the expanded view. */
   layout?: SearchLayout;
   /** Whether the search bar is disabled. */
   disabled?: boolean;
   /** Style applied to the outer wrapper (controls margins from consumer side). */
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the collapsed search bar container. */
+  barStyle?: StyleProp<ViewStyle>;
   /** Children: SearchLeadingIcon, SearchInput, SearchTrailingIcon, SearchContent */
   children: React.ReactNode;
 };
@@ -120,13 +125,21 @@ const SEARCH_CONTENT = 'SearchContent';
 // =============================================================================
 
 function Search({
-  expanded,
-  onExpandedChange,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   layout = 'full-screen',
   disabled = false,
   style,
+  barStyle,
   children,
 }: SearchProps) {
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
+
   searchStyles.useVariants({ disabled });
 
   const [mounted, setMounted] = React.useState(false);
@@ -153,7 +166,7 @@ function Search({
 
   React.useEffect(() => {
     const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    if (expanded) {
+    if (open) {
       setMounted(true);
       marginAnim.value = withSpring(EXPANDED_MARGIN, fastEffects);
       containerOpacity.value = withSpring(1, fastEffects);
@@ -166,7 +179,7 @@ function Search({
       barTranslateY.value = withSpring(measuredOffsetY.current, fastEffects);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded]);
+  }, [open]);
 
   const animatedMarginStyle = useAnimatedStyle(() => ({
     marginHorizontal: marginAnim.value,
@@ -185,8 +198,8 @@ function Search({
   }));
 
   const handleCollapse = React.useCallback(() => {
-    onExpandedChange(false);
-  }, [onExpandedChange]);
+    setOpen(false);
+  }, [setOpen]);
 
   const handleExpand = React.useCallback(() => {
     if (disabled) return;
@@ -195,9 +208,9 @@ function Search({
       const offset = pageY - finalY;
       measuredOffsetY.current = offset;
       barTranslateY.value = offset;
-      onExpandedChange(true);
+      setOpen(true);
     });
-  }, [disabled, onExpandedChange, barTranslateY]);
+  }, [disabled, setOpen, barTranslateY]);
 
   // Sort children into slots
   let leadingIconSlot: React.ReactElement | null = null;
@@ -207,7 +220,7 @@ function Search({
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const name = (child.type as any).displayName;
+    const name = getDisplayName(child);
 
     switch (name) {
       case SEARCH_LEADING_ICON:
@@ -292,8 +305,8 @@ function Search({
           accessibilityLabel={
             (inputSlot as React.ReactElement<SearchInputProps> | null)?.props?.placeholder ?? 'Search'
           }
-          accessibilityState={{ disabled, expanded }}
-          style={searchStyles.bar}
+          accessibilityState={{ disabled, expanded: open }}
+          style={[searchStyles.bar, barStyle]}
         >
           <View
             style={[
@@ -317,7 +330,7 @@ function Search({
   );
 
   // If not expanded and not mounted, just show the bar
-  if (!mounted && !expanded) {
+  if (!mounted && !open) {
     return bar;
   }
 
@@ -671,6 +684,8 @@ const searchStyles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Search.displayName = 'Search';
 
 export type {
   SearchContentProps,

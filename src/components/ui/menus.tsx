@@ -10,7 +10,8 @@ import { Dimensions, Modal, Pressable as RNPressable, View } from 'react-native'
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { getDisplayName } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Divider } from './divider';
 import { Icon, type IconProps } from './icon';
@@ -26,8 +27,9 @@ type MenuColorStyle = 'standard' | 'vibrant';
 type MenuProps = {
   variant?: MenuVariant;
   colorStyle?: MenuColorStyle;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   anchor: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
@@ -137,10 +139,6 @@ const CONTENT_SORT_ORDER = [MENU_ITEM_LABEL, MENU_ITEM_SUPPORTING_TEXT];
 // Helpers
 // =============================================================================
 
-function getDisplayName(child: React.ReactElement): string | undefined {
-  return (child.type as any).displayName;
-}
-
 const VIEWPORT_MARGIN = 8;
 
 /**
@@ -185,12 +183,19 @@ function computeMenuPosition(anchor: LayoutRectangle, menu: { width: number; hei
 function Menu({
   variant = 'baseline',
   colorStyle = 'standard',
-  open,
+  open: openProp,
+  defaultOpen = false,
   onOpenChange,
   anchor,
   style,
   children,
 }: MenuProps) {
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
+
   // Effective color style: baseline always uses standard
   const effectiveColorStyle = variant === 'baseline' ? 'standard' : colorStyle;
   menuStyles.useVariants({ variant, colorStyle: effectiveColorStyle });
@@ -261,8 +266,8 @@ function Menu({
   }));
 
   const handleDismiss = React.useCallback(() => {
-    onOpenChange(false);
-  }, [onOpenChange]);
+    setOpen(false);
+  }, [setOpen]);
 
   // Memoize position to avoid recomputing Dimensions.get on every render
   const menuPosition = React.useMemo(
@@ -1112,6 +1117,8 @@ const menuStyles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Menu.displayName = 'Menu';
 
 export type {
   MenuColorStyle,

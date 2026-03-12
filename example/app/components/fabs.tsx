@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { FAB } from 'react-native-material-design/ui/fab';
+import { FAB, FABIcon } from 'react-native-material-design/ui/fab';
 import { Text } from 'react-native-material-design/ui/text';
 import { StyleSheet } from 'react-native-unistyles';
 
@@ -47,7 +47,9 @@ export default function FABsScreen() {
         <ConfigPanel schema={schema} config={config} />
       </ScrollView>
 
-      <FAB name="add" size={v.size} color={v.color} disabled={v.disabled} style={styles.fab} />
+      <FAB size={v.size} colorStyle={v.color} disabled={v.disabled} style={styles.fab}>
+        <FABIcon name="add" />
+      </FAB>
     </View>
   );
 }

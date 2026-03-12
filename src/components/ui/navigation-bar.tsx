@@ -17,7 +17,8 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { getDisplayName } from '../../utilities';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -48,6 +49,8 @@ type NavigationBarItemProps = {
   accessibilityLabel?: string;
 
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the active indicator pill. */
+  indicatorStyle?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 };
 
@@ -111,20 +114,15 @@ function NavigationBar({
   style,
   children,
 }: NavigationBarProps) {
-  const isControlled = valueProp !== undefined;
-  const [internalValue, setInternalValue] = React.useState(defaultValue);
-  const value = isControlled ? valueProp : internalValue;
-
-  const handleSelect = React.useCallback((itemValue: string) => {
-    if (!isControlled) {
-      setInternalValue(itemValue);
-    }
-    onValueChange?.(itemValue);
-  }, [isControlled, onValueChange]);
+  const [value, setValue] = useControllableState({
+    value: valueProp,
+    defaultValue: defaultValue ?? '',
+    onChange: onValueChange,
+  });
 
   const contextValue = React.useMemo<NavigationBarContextValue>(
-    () => ({ value, onSelect: handleSelect, itemLayout }),
-    [value, handleSelect, itemLayout],
+    () => ({ value, onSelect: setValue, itemLayout }),
+    [value, setValue, itemLayout],
   );
 
   // useVariants after state/callback setup: controlled/uncontrolled logic and
@@ -146,7 +144,13 @@ function NavigationBar({
 // NavigationBarItem (pressable item — icon + label + active indicator)
 // =============================================================================
 
-function NavigationBarItem({ value: itemValue, accessibilityLabel, style, children }: NavigationBarItemProps) {
+function NavigationBarItem({
+  value: itemValue,
+  accessibilityLabel,
+  style,
+  indicatorStyle,
+  children,
+}: NavigationBarItemProps) {
   const ctx = React.useContext(NavigationBarContext);
   const itemLayout = ctx?.itemLayout ?? 'vertical';
   const active = ctx ? ctx.value === itemValue : false;
@@ -190,7 +194,7 @@ function NavigationBarItem({ value: itemValue, accessibilityLabel, style, childr
   let labelEl: React.ReactNode = null;
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = (child.type as any)?.displayName;
+    const displayName = getDisplayName(child);
     if (displayName === 'NavigationBarIcon') {
       iconEl = React.cloneElement(child, {
         __internal__navActive: active,
@@ -214,7 +218,7 @@ function NavigationBarItem({ value: itemValue, accessibilityLabel, style, childr
       {itemLayout === 'vertical' ? (
         <View style={styles.itemContentVertical}>
           <View style={styles.indicatorContainerVertical}>
-            <Animated.View style={[styles.indicatorVertical, indicatorAnimatedStyle]} />
+            <Animated.View style={[styles.indicatorVertical, indicatorAnimatedStyle, indicatorStyle]} />
             <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
             {iconEl}
           </View>
@@ -222,7 +226,7 @@ function NavigationBarItem({ value: itemValue, accessibilityLabel, style, childr
         </View>
       ) : (
         <View style={styles.indicatorContainerHorizontal}>
-          <Animated.View style={[styles.indicatorHorizontal, indicatorAnimatedStyle]} />
+          <Animated.View style={[styles.indicatorHorizontal, indicatorAnimatedStyle, indicatorStyle]} />
           <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
           {iconEl}
           {labelEl}
@@ -380,6 +384,9 @@ const styles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+NavigationBar.displayName = 'NavigationBar';
+NavigationBarItem.displayName = 'NavigationBarItem';
 
 export type {
   NavigationBarIconProps,

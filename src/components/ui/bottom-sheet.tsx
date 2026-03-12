@@ -11,6 +11,8 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
+import { useControllableState } from '../../hooks';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -22,6 +24,8 @@ type BottomSheetProps = {
   variant?: BottomSheetVariant;
   /** Whether the sheet is open. When omitted, the sheet manages its own state. */
   open?: boolean;
+  /** Default open state for uncontrolled mode. */
+  defaultOpen?: boolean;
   /** Called when the open state changes. */
   onOpenChange?: (open: boolean) => void;
   /** Whether to show the drag handle. */
@@ -34,6 +38,12 @@ type BottomSheetProps = {
   initialSnapIndex?: number;
   /** Style applied to the sheet container. */
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the scrim overlay (modal variant only). */
+  scrimStyle?: StyleProp<ViewStyle>;
+  /** Style applied to the scrollable content area. */
+  contentStyle?: StyleProp<ViewStyle>;
+  /** Style applied to the drag handle indicator bar. */
+  handleIndicatorStyle?: StyleProp<ViewStyle>;
   /** Content rendered inside the sheet. */
   children?: React.ReactNode;
 };
@@ -43,6 +53,8 @@ type BottomSheetDragHandleProps = {
   label?: string;
   /** Style applied to the drag handle wrapper. */
   style?: StyleProp<ViewStyle>;
+  /** @internal Style applied to the indicator bar. */
+  __internal__indicatorStyle?: StyleProp<ViewStyle>;
   /** @internal Passed from parent BottomSheet. */
   __internal__onToggle?: () => void;
 };
@@ -66,28 +78,29 @@ const DISMISS_DISTANCE_FRACTION = 0.25;
 
 function BottomSheet({
   variant = 'modal',
-  open: controlledOpen,
+  open: openProp,
+  defaultOpen = false,
   onOpenChange,
   dragHandle = true,
   dragHandleLabel = 'Resize sheet',
   snapPoints = [0.5, 1],
   initialSnapIndex = 0,
   style,
+  scrimStyle,
+  contentStyle,
+  handleIndicatorStyle,
   children,
 }: BottomSheetProps) {
-  const isControlled = controlledOpen !== undefined;
-  const [internalOpen, setInternalOpen] = React.useState(false);
-  const isOpen = isControlled ? controlledOpen : internalOpen;
+  const [isOpen, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
 
   // `visible` keeps the component mounted during exit animations.
   // It turns true immediately when isOpen becomes true, but only turns
   // false after the close animation finishes.
   const [visible, setVisible] = React.useState(false);
-
-  const setOpen = React.useCallback((next: boolean) => {
-    if (!isControlled) setInternalOpen(next);
-    onOpenChange?.(next);
-  }, [isControlled, onOpenChange]);
 
   const handleClose = React.useCallback(() => setOpen(false), [setOpen]);
 
@@ -233,12 +246,16 @@ function BottomSheet({
       {dragHandle && (
         <GestureDetector gesture={panGesture}>
           <View>
-            <BottomSheetDragHandle label={dragHandleLabel} __internal__onToggle={handleDragHandleToggle} />
+            <BottomSheetDragHandle
+              label={dragHandleLabel}
+              __internal__indicatorStyle={handleIndicatorStyle}
+              __internal__onToggle={handleDragHandleToggle}
+            />
           </View>
         </GestureDetector>
       )}
       <ScrollView
-        style={sheetStyles.scrollContent}
+        style={[sheetStyles.scrollContent, contentStyle]}
         contentContainerStyle={sheetStyles.scrollContentContainer}
         showsVerticalScrollIndicator={true}
         bounces={false}
@@ -259,7 +276,7 @@ function BottomSheet({
           accessibilityRole="button"
           accessibilityLabel="Close bottom sheet"
         >
-          <Animated.View style={[sheetStyles.scrim, animatedScrimStyle]} />
+          <Animated.View style={[sheetStyles.scrim, animatedScrimStyle, scrimStyle]} />
         </RNPressable>
 
         {/* Sheet anchored to bottom */}
@@ -278,7 +295,12 @@ function BottomSheet({
 // BottomSheetDragHandle
 // =============================================================================
 
-function BottomSheetDragHandle({ label = 'Resize sheet', style, __internal__onToggle }: BottomSheetDragHandleProps) {
+function BottomSheetDragHandle({
+  label = 'Resize sheet',
+  style,
+  __internal__indicatorStyle,
+  __internal__onToggle,
+}: BottomSheetDragHandleProps) {
   return (
     <RNPressable
       onPress={__internal__onToggle}
@@ -286,7 +308,7 @@ function BottomSheetDragHandle({ label = 'Resize sheet', style, __internal__onTo
       accessibilityLabel={label}
       style={[sheetStyles.dragHandleHitArea, style]}
     >
-      <View style={sheetStyles.dragHandle} />
+      <View style={[sheetStyles.dragHandle, __internal__indicatorStyle]} />
     </RNPressable>
   );
 }
@@ -343,6 +365,9 @@ const sheetStyles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+BottomSheet.displayName = 'BottomSheet';
+BottomSheetDragHandle.displayName = 'BottomSheetDragHandle';
 
 export type { BottomSheetDragHandleProps, BottomSheetProps, BottomSheetVariant };
 export { BottomSheet, BottomSheetDragHandle };

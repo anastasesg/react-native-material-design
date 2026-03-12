@@ -12,7 +12,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
 import { StateLayer } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { Divider } from './divider';
@@ -25,8 +25,12 @@ import { Text } from './text';
 // =============================================================================
 
 type DatePickerProps = {
-  /** Controls modal visibility. */
-  visible: boolean;
+  /** Controls modal visibility (controlled). */
+  open?: boolean;
+  /** Initial open state (uncontrolled). Default: false. */
+  defaultOpen?: boolean;
+  /** Called when the open state changes. */
+  onOpenChange?: (open: boolean) => void;
   /** Called when the picker is dismissed (Cancel or backdrop press). */
   onDismiss?: () => void;
   /** Called when the user confirms with OK. Receives the selected date. */
@@ -443,7 +447,9 @@ const YearPicker = React.memo(function YearPicker({
 // =============================================================================
 
 function DatePicker({
-  visible,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   onDismiss,
   onConfirm,
   value: controlledValue,
@@ -453,6 +459,13 @@ function DatePicker({
   headline,
   style,
 }: DatePickerProps) {
+  // --- Open state (controlled/uncontrolled) ---
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
+
   // ---- Mount/unmount for exit animation ----
   const [mounted, setMounted] = React.useState(false);
 
@@ -469,7 +482,7 @@ function DatePicker({
 
   React.useEffect(() => {
     const { fastSpatial, fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    if (visible) {
+    if (open) {
       setMounted(true);
       scrimOpacity.value = withSpring(SCRIM_OPACITY, fastEffects);
       containerScale.value = withSpring(1, fastSpatial);
@@ -480,7 +493,7 @@ function DatePicker({
       containerOpacity.value = withSpring(0, fastEffects, onCloseAnimationEnd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [open]);
 
   const animatedScrimStyle = useAnimatedStyle(() => ({
     opacity: scrimOpacity.value,
@@ -508,7 +521,7 @@ function DatePicker({
 
   // Reset state when picker opens
   React.useEffect(() => {
-    if (visible) {
+    if (open) {
       const date = controlledValue ?? defaultValue ?? today;
       setSelectedDate(date);
       setViewYear(date.getFullYear());
@@ -516,7 +529,7 @@ function DatePicker({
       setView('calendar');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [open]);
 
   const handlePrevMonth = React.useCallback(() => {
     setViewMonth((prev) => {
@@ -552,12 +565,14 @@ function DatePicker({
   }, []);
 
   const handleConfirm = React.useCallback(() => {
+    setOpen(false);
     onConfirm?.(selectedDate);
-  }, [onConfirm, selectedDate]);
+  }, [setOpen, onConfirm, selectedDate]);
 
   const handleDismiss = React.useCallback(() => {
+    setOpen(false);
     onDismiss?.();
-  }, [onDismiss]);
+  }, [setOpen, onDismiss]);
 
   // Headline text: "Select date" or custom
   const supportingText = headline ?? 'Select date';
@@ -900,6 +915,8 @@ const pickerStyles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+DatePicker.displayName = 'DatePicker';
 
 export type { DatePickerProps };
 export { DatePicker };

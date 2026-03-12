@@ -14,10 +14,10 @@ const schema = {
 
 export default function DatePickerScreen() {
   const config = useConfig(schema);
-  const [visible, setVisible] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState(new Date());
 
-  config.setAction('show', () => setVisible(true));
+  config.setAction('show', () => setOpen(true));
 
   const formatDate = (date: Date) => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -45,11 +45,10 @@ export default function DatePickerScreen() {
       />
 
       <DatePicker
-        visible={visible}
-        onDismiss={() => setVisible(false)}
+        open={open}
+        onOpenChange={setOpen}
         onConfirm={(date) => {
           setSelectedDate(date);
-          setVisible(false);
         }}
         value={selectedDate}
       />

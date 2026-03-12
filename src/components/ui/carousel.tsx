@@ -18,6 +18,7 @@ import Animated, {
 import { StyleSheet } from 'react-native-unistyles';
 
 import { useInteraction } from '../../hooks';
+import { childGuard, warnUnexpectedChild } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Text } from './text';
 
@@ -61,6 +62,8 @@ type CarouselItemProps = {
   accessibilityLabel?: string;
   /** Aspect ratio (width/height) for uncontained-multi-aspect layout. */
   aspectRatio?: number;
+  /** Style applied to the item container. */
+  style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 
   /** @internal Injected by Carousel */
@@ -101,6 +104,12 @@ type CarouselItemLabelProps = {
   __internal__largeItemWidth?: number;
   __internal__mediumItemWidth?: number;
 };
+
+const isCarouselItem = childGuard<CarouselItemProps>('CarouselItem');
+const isCarouselItemImage = childGuard<CarouselItemImageProps>('CarouselItemImage');
+const isCarouselItemLabel = childGuard<CarouselItemLabelProps>('CarouselItemLabel');
+const CAROUSEL_CHILDREN = ['CarouselItem'];
+const CAROUSEL_ITEM_CHILDREN = ['CarouselItemImage', 'CarouselItemLabel'];
 
 // =============================================================================
 // CarouselItemImage
@@ -226,6 +235,7 @@ function CarouselItem({
   onPress,
   accessibilityLabel,
   aspectRatio,
+  style: itemStyle,
   children,
   __internal__index = 0,
   __internal__totalItems = 1,
@@ -356,7 +366,9 @@ function CarouselItem({
 
   // Pass internal props down to CarouselItemImage and CarouselItemLabel children
   const enrichedChildren = React.Children.map(children, (child) => {
-    if (React.isValidElement(child) && child.type === CarouselItemImage) {
+    if (!React.isValidElement(child)) return child;
+
+    if (isCarouselItemImage(child)) {
       return React.cloneElement(child, {
         __internal__index,
         __internal__scrollX,
@@ -364,9 +376,9 @@ function CarouselItem({
         __internal__pageWidth: __internal__pageWidth,
         __internal__uncontainedItemWidth: __internal__uncontainedItemWidth,
         ...(isMultiAspect && { __internal__computedItemWidth: computedItemWidth }),
-      } as any);
+      });
     }
-    if (React.isValidElement(child) && child.type === CarouselItemLabel) {
+    if (isCarouselItemLabel(child)) {
       return React.cloneElement(child, {
         __internal__index,
         __internal__scrollX,
@@ -374,13 +386,15 @@ function CarouselItem({
         __internal__pageWidth: __internal__pageWidth,
         __internal__largeItemWidth: __internal__largeItemWidth,
         __internal__mediumItemWidth: __internal__mediumItemWidth,
-      } as any);
+      });
     }
+
+    warnUnexpectedChild('CarouselItem', child, CAROUSEL_ITEM_CHILDREN);
     return child;
   });
 
   const inner = (
-    <Animated.View style={[styles.item, itemStaticStyle, animatedItemStyle]}>
+    <Animated.View style={[styles.item, itemStaticStyle, animatedItemStyle, itemStyle]}>
       {enrichedChildren}
       <StateLayer progress={progress} color="onSurface" />
     </Animated.View>
@@ -470,7 +484,9 @@ function Carousel({ layout = 'hero', itemHeight = 200, uncontainedItemWidth = 20
   const totalItems = React.Children.count(children);
 
   const enrichedChildren = React.Children.map(children, (child, index) => {
-    if (React.isValidElement(child)) {
+    if (!React.isValidElement(child)) return child;
+
+    if (isCarouselItem(child)) {
       return React.cloneElement(child, {
         __internal__index: index,
         __internal__totalItems: totalItems,
@@ -481,8 +497,10 @@ function Carousel({ layout = 'hero', itemHeight = 200, uncontainedItemWidth = 20
         __internal__pageWidth: pageWidth,
         __internal__uncontainedItemWidth: uncontainedItemWidth,
         __internal__mediumItemWidth: mediumItemWidth,
-      } as any);
+      });
     }
+
+    warnUnexpectedChild('Carousel', child, CAROUSEL_CHILDREN);
     return child;
   });
 
@@ -576,6 +594,11 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Carousel.displayName = 'Carousel';
+CarouselItem.displayName = 'CarouselItem';
+CarouselItemImage.displayName = 'CarouselItemImage';
+CarouselItemLabel.displayName = 'CarouselItemLabel';
 
 export type { CarouselItemImageProps, CarouselItemLabelProps, CarouselItemProps, CarouselLayout, CarouselProps };
 export { Carousel, CarouselItem, CarouselItemImage, CarouselItemLabel };

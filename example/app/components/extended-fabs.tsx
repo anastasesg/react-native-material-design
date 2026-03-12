@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { ExtendedFAB, ExtendedFABIcon, ExtendedFABLabel } from 'react-native-material-design/ui/extended-fab';
+import { FAB, FABIcon, FABLabel } from 'react-native-material-design/ui/fab';
 import { Text } from 'react-native-material-design/ui/text';
 import { StyleSheet } from 'react-native-unistyles';
 
@@ -49,10 +49,10 @@ export default function ExtendedFABsScreen() {
         <ConfigPanel schema={schema} config={config} />
       </ScrollView>
 
-      <ExtendedFAB size={v.size} color={v.color} disabled={v.disabled} style={styles.fab}>
-        {v.icon && <ExtendedFABIcon name="add" />}
-        <ExtendedFABLabel>{v.label}</ExtendedFABLabel>
-      </ExtendedFAB>
+      <FAB size={v.size} colorStyle={v.color} disabled={v.disabled} style={styles.fab}>
+        {v.icon && <FABIcon name="add" />}
+        <FABLabel>{v.label}</FABLabel>
+      </FAB>
     </View>
   );
 }

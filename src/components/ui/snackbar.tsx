@@ -5,13 +5,19 @@
 /// Accessibility: https://m3.material.io/components/snackbar/accessibility
 
 import React from 'react';
-import { type LayoutChangeEvent, type StyleProp, type TextLayoutEvent, type ViewStyle } from 'react-native';
+import {
+  type LayoutChangeEvent,
+  type StyleProp,
+  type TextLayoutEvent,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import { Pressable as RNPressable, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
 import { StateLayer } from '../custom';
 import { Icon } from './icon';
 import { Text } from './text';
@@ -29,10 +35,14 @@ type SnackbarProps = {
   onAction?: () => void;
   /** Whether to show the close (dismiss) icon button. */
   showClose?: boolean;
+  /** Controls snackbar open state. */
+  open?: boolean;
+  /** Default open state for uncontrolled mode. */
+  defaultOpen?: boolean;
+  /** Called when open state changes. */
+  onOpenChange?: (open: boolean) => void;
   /** Called when the snackbar is dismissed (close button, swipe, or auto-dismiss). */
   onDismiss?: () => void;
-  /** Controls snackbar visibility. */
-  visible: boolean;
   /**
    * Auto-dismiss duration in milliseconds. Defaults to 4000.
    * Set to 0 to disable auto-dismiss.
@@ -42,6 +52,10 @@ type SnackbarProps = {
   duration?: number;
   /** Style applied to the snackbar container. */
   style?: StyleProp<ViewStyle>;
+  /** Style applied to the message text. */
+  messageStyle?: StyleProp<TextStyle>;
+  /** Style applied to the action button. */
+  actionStyle?: StyleProp<ViewStyle>;
 };
 
 // =============================================================================
@@ -61,11 +75,21 @@ function Snackbar({
   action,
   onAction,
   showClose = false,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   onDismiss,
-  visible,
   duration,
   style,
+  messageStyle,
+  actionStyle,
 }: SnackbarProps) {
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
+
   // Determine effective auto-dismiss duration.
   // Per M3 accessibility guidelines: snackbars with actions should not auto-dismiss
   // unless the consumer explicitly overrides by providing a duration.
@@ -75,7 +99,7 @@ function Snackbar({
     return DEFAULT_DURATION;
   }, [duration, action]);
 
-  // visible/isOpen decoupling: `mounted` keeps component in tree during exit animation
+  // open/mounted decoupling: `mounted` keeps component in tree during exit animation
   const [mounted, setMounted] = React.useState(false);
 
   // Whether the action text overflows and needs its own line
@@ -98,8 +122,9 @@ function Snackbar({
 
   // Stable dismiss function for use with runOnJS in gesture worklets
   const dismiss = React.useCallback(() => {
+    setOpen(false);
     onDismissRef.current?.();
-  }, []);
+  }, [setOpen]);
 
   const onCloseAnimationEnd = React.useCallback((finished?: boolean) => {
     'worklet';
@@ -108,10 +133,10 @@ function Snackbar({
     }
   }, []);
 
-  // Animate in/out based on `visible`
+  // Animate in/out based on `open`
   React.useEffect(() => {
     const springs = UnistylesRuntime.getTheme().motion.spring;
-    if (visible) {
+    if (open) {
       setMounted(true);
       setActionOnOwnLine(false);
       setIsTwoLine(false);
@@ -122,18 +147,19 @@ function Snackbar({
       opacity.value = withSpring(0, springs.fastEffects);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [open]);
 
   // Auto-dismiss timer
   React.useEffect(() => {
-    if (!visible || effectiveDuration <= 0) return;
+    if (!open || effectiveDuration <= 0) return;
 
     const timer = setTimeout(() => {
+      setOpen(false);
       onDismissRef.current?.();
     }, effectiveDuration);
 
     return () => clearTimeout(timer);
-  }, [visible, effectiveDuration]);
+  }, [open, effectiveDuration, setOpen]);
 
   // Swipe-to-dismiss via RNGH (runs on UI thread)
   const dragStartY = useSharedValue(0);
@@ -183,8 +209,9 @@ function Snackbar({
   }, [onAction]);
 
   const handleClose = React.useCallback(() => {
+    setOpen(false);
     onDismissRef.current?.();
-  }, []);
+  }, [setOpen]);
 
   // Animated styles
   const animatedContainerStyle = useAnimatedStyle(() => ({
@@ -217,7 +244,7 @@ function Snackbar({
             <Text
               variant="body"
               size="medium"
-              style={snackbarStyles.message}
+              style={[snackbarStyles.message, messageStyle]}
               numberOfLines={2}
               onTextLayout={handleTextLayout}
             >
@@ -230,7 +257,7 @@ function Snackbar({
                 {...actionHandlers}
                 accessibilityRole="button"
                 accessibilityLabel={action}
-                style={snackbarStyles.actionButton}
+                style={[snackbarStyles.actionButton, actionStyle]}
                 onLayout={handleActionLayout}
               >
                 <Text variant="label" size="large" style={snackbarStyles.actionLabel}>
@@ -262,7 +289,7 @@ function Snackbar({
                 {...actionHandlers}
                 accessibilityRole="button"
                 accessibilityLabel={action}
-                style={snackbarStyles.actionButton}
+                style={[snackbarStyles.actionButton, actionStyle]}
               >
                 <Text variant="label" size="large" style={snackbarStyles.actionLabel}>
                   {action}
@@ -351,6 +378,8 @@ const snackbarStyles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+Snackbar.displayName = 'Snackbar';
 
 export type { SnackbarProps };
 export { Snackbar };

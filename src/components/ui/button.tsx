@@ -16,7 +16,8 @@ import { StyleSheet } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { childGuard, warnUnexpectedChild } from '../../utilities';
 import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps, type TextSize, type TextVariant } from './text';
@@ -66,10 +67,11 @@ type ButtonProps = Omit<RNPressableProps, 'style' | 'children'> & {
   shape?: ButtonShape;
   variant?: ButtonVariant;
 
-  /** Pass a boolean to enable toggle mode. `undefined` = default (non-toggle) button. */
+  /** Enables toggle mode. When false/undefined, selected/defaultSelected/onSelectedChange are ignored. */
+  toggle?: boolean;
   selected?: boolean;
   defaultSelected?: boolean;
-  onSelectionChange?: (selected: boolean) => void;
+  onSelectedChange?: (selected: boolean) => void;
 
   /** @internal Used by ButtonGroup connected variant to suppress Button's own corner animation. */
   __internal__suppressCornerAnimation?: boolean;
@@ -82,9 +84,10 @@ function Button({
   size = 'small',
   shape = 'rounded',
   variant = 'filled',
+  toggle = false,
   selected: selectedProp,
   defaultSelected,
-  onSelectionChange,
+  onSelectedChange,
   __internal__suppressCornerAnimation = false,
   style,
   containerStyle,
@@ -93,10 +96,12 @@ function Button({
   disabled = false,
   ...props
 }: ButtonProps) {
-  const isToggle = selectedProp !== undefined || onSelectionChange !== undefined || defaultSelected !== undefined;
-  const [selectedState, setSelectedState] = React.useState(defaultSelected ?? false);
-  const selected = selectedProp !== undefined ? selectedProp : selectedState;
-  const selection: ButtonSelection = isToggle ? (selected ? 'selected' : 'unselected') : 'none';
+  const [selected, setSelected] = useControllableState({
+    value: toggle ? selectedProp : undefined,
+    defaultValue: toggle ? (defaultSelected ?? false) : false,
+    onChange: toggle ? onSelectedChange : undefined,
+  });
+  const selection: ButtonSelection = toggle ? (selected ? 'selected' : 'unselected') : 'none';
 
   styles.useVariants({ size, shape, variant, selection, disabled });
 
@@ -110,13 +115,11 @@ function Button({
 
   const handlePress = React.useCallback((e: GestureResponderEvent) => {
     if (disabled) return;
-    if (isToggle) {
-      const next = !selected;
-      if (selectedProp === undefined) setSelectedState(next);
-      onSelectionChange?.(next);
+    if (toggle) {
+      setSelected((prev) => !prev);
     }
     onPress?.(e);
-  }, [disabled, isToggle, selected, selectedProp, onSelectionChange, onPress]);
+  }, [disabled, toggle, setSelected, onPress]);
 
   return (
     <RNPressable style={[styles.root, style]} onPress={handlePress} disabled={disabled} {...handlers} {...props}>
@@ -128,21 +131,30 @@ function Button({
       >
         <StateLayer progress={progress} color={stateLayerColor} disabled={disabled} />
         {React.Children.map(children, (child) => {
-          if (React.isValidElement(child)) {
-            return React.cloneElement(child, {
-              __internal__buttonSize: size,
-              __internal__buttonShape: shape,
-              __internal__buttonVariant: variant,
-              __internal__buttonSelection: selection,
-              __internal__buttonDisabled: disabled,
-            } as any);
-          }
+          if (!React.isValidElement(child)) return child;
+
+          const internal = {
+            __internal__buttonSize: size,
+            __internal__buttonShape: shape,
+            __internal__buttonVariant: variant,
+            __internal__buttonSelection: selection,
+            __internal__buttonDisabled: disabled,
+          };
+
+          if (isButtonIcon(child)) return React.cloneElement(child, internal);
+          if (isButtonLabel(child)) return React.cloneElement(child, internal);
+
+          warnUnexpectedChild('Button', child, BUTTON_CHILDREN);
           return child;
         })}
       </ShapeContainer>
     </RNPressable>
   );
 }
+
+const isButtonIcon = childGuard<ButtonIconProps>('ButtonIcon');
+const isButtonLabel = childGuard<ButtonLabelProps>('ButtonLabel');
+const BUTTON_CHILDREN = ['ButtonIcon', 'ButtonLabel'];
 
 type ButtonIconProps = IconProps & {
   __internal__buttonSize?: ButtonSize;
@@ -390,6 +402,10 @@ const styles = StyleSheet.create((theme) => ({
     ],
   },
 }));
+
+Button.displayName = 'Button';
+ButtonIcon.displayName = 'ButtonIcon';
+ButtonLabel.displayName = 'ButtonLabel';
 
 export type { ButtonIconProps, ButtonLabelProps, ButtonProps, ButtonSelection, ButtonShape, ButtonSize, ButtonVariant };
 export { Button, ButtonIcon, ButtonLabel };

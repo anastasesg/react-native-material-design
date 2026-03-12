@@ -18,7 +18,8 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
+import { childGuard, warnUnexpectedChild } from '../../utilities';
 import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps, type TextSize, type TextVariant } from './text';
@@ -112,6 +113,13 @@ const TRAILING_ICON_OFFSET: Record<SplitButtonSize, number> = {
   xlarge: -6,
 };
 
+const isSplitButtonLeading = childGuard<SplitButtonLeadingProps>('SplitButtonLeading');
+const isSplitButtonTrailing = childGuard<SplitButtonTrailingProps>('SplitButtonTrailing');
+const isSplitButtonIcon = childGuard<SplitButtonIconProps>('SplitButtonIcon');
+const isSplitButtonLabel = childGuard<SplitButtonLabelProps>('SplitButtonLabel');
+const SPLIT_BUTTON_CHILDREN = ['SplitButtonLeading', 'SplitButtonTrailing'];
+const SPLIT_BUTTON_SUB_CHILDREN = ['SplitButtonIcon', 'SplitButtonLabel'];
+
 // =============================================================================
 // Main Component (non-pressable layout root)
 // =============================================================================
@@ -122,13 +130,18 @@ function SplitButton({ size = 'small', variant = 'filled', disabled = false, sty
   return (
     <View style={[styles.root, { height: HEIGHT[size] }, style]} accessibilityRole="none">
       {React.Children.map(children, (child) => {
-        if (React.isValidElement(child)) {
-          return React.cloneElement(child, {
-            __internal__splitSize: size,
-            __internal__splitVariant: variant,
-            __internal__splitDisabled: disabled,
-          } as any);
-        }
+        if (!React.isValidElement(child)) return child;
+
+        const internal = {
+          __internal__splitSize: size,
+          __internal__splitVariant: variant,
+          __internal__splitDisabled: disabled,
+        };
+
+        if (isSplitButtonLeading(child)) return React.cloneElement(child, internal);
+        if (isSplitButtonTrailing(child)) return React.cloneElement(child, internal);
+
+        warnUnexpectedChild('SplitButton', child, SPLIT_BUTTON_CHILDREN);
         return child;
       })}
     </View>
@@ -197,13 +210,18 @@ function SplitButtonLeading({
       >
         <StateLayer progress={progress} color={stateLayerColor} disabled={disabled} />
         {React.Children.map(children, (child) => {
-          if (React.isValidElement(child)) {
-            return React.cloneElement(child, {
-              __internal__splitSize: size,
-              __internal__splitVariant: variant,
-              __internal__splitDisabled: disabled,
-            } as any);
-          }
+          if (!React.isValidElement(child)) return child;
+
+          const internal = {
+            __internal__splitSize: size,
+            __internal__splitVariant: variant,
+            __internal__splitDisabled: disabled,
+          };
+
+          if (isSplitButtonIcon(child)) return React.cloneElement(child, internal);
+          if (isSplitButtonLabel(child)) return React.cloneElement(child, internal);
+
+          warnUnexpectedChild('SplitButtonLeading', child, SPLIT_BUTTON_SUB_CHILDREN);
           return child;
         })}
       </ShapeContainer>
@@ -216,9 +234,9 @@ function SplitButtonLeading({
 // =============================================================================
 
 type SplitButtonTrailingProps = Omit<RNPressableProps, 'style' | 'children'> & {
-  expanded?: boolean;
-  defaultExpanded?: boolean;
-  onExpandedChange?: (expanded: boolean) => void;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   style?: StyleProp<ViewStyle>;
   containerStyle?: StyleProp<ViewStyle>;
   __internal__splitSize?: SplitButtonSize;
@@ -227,9 +245,9 @@ type SplitButtonTrailingProps = Omit<RNPressableProps, 'style' | 'children'> & {
 };
 
 function SplitButtonTrailing({
-  expanded: expandedProp,
-  defaultExpanded,
-  onExpandedChange,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   style,
   containerStyle,
   onPress,
@@ -238,9 +256,11 @@ function SplitButtonTrailing({
   __internal__splitDisabled: disabled = false,
   ...props
 }: SplitButtonTrailingProps) {
-  const isControlled = expandedProp !== undefined;
-  const [expandedState, setExpandedState] = React.useState(defaultExpanded ?? false);
-  const expanded = isControlled ? expandedProp : expandedState;
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
 
   styles.useVariants({ size, variant, disabled });
 
@@ -251,7 +271,7 @@ function SplitButtonTrailing({
 
   // --- Shape ---
   const outerRadius = HEIGHT[size] / 2;
-  const innerRestToken = expanded ? outerRadius : getSplitInnerRestToken(size);
+  const innerRestToken = open ? outerRadius : getSplitInnerRestToken(size);
 
   const restShape = {
     topRight: outerRadius,
@@ -269,15 +289,15 @@ function SplitButtonTrailing({
   const stateLayerColor = getSplitButtonStateLayerColor(variant);
 
   // --- Icon rotation (separate from shape) ---
-  const expandProgress = useSharedValue(expanded ? 1 : 0);
+  const expandProgress = useSharedValue(open ? 1 : 0);
 
   React.useEffect(() => {
     const { motion } = UnistylesRuntime.getTheme();
-    expandProgress.value = withTiming(expanded ? 1 : 0, {
+    expandProgress.value = withTiming(open ? 1 : 0, {
       duration: motion.duration.short3,
       easing: Easing.bezier(...motion.easing.standard),
     });
-  }, [expanded, expandProgress]);
+  }, [open, expandProgress]);
 
   const animatedIconStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${interpolate(expandProgress.value, [0, 1], [0, 180])}deg` }],
@@ -287,11 +307,9 @@ function SplitButtonTrailing({
   // --- Handlers ---
   const handlePress = React.useCallback((e: GestureResponderEvent) => {
     if (disabled) return;
-    const next = !expanded;
-    if (!isControlled) setExpandedState(next);
-    onExpandedChange?.(next);
+    setOpen((prev) => !prev);
     onPress?.(e);
-  }, [disabled, expanded, isControlled, onExpandedChange, onPress]);
+  }, [disabled, setOpen, onPress]);
 
   return (
     <RNPressable
@@ -299,7 +317,7 @@ function SplitButtonTrailing({
       onPress={handlePress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityState={{ expanded }}
+      accessibilityState={{ expanded: open }}
       accessibilityLabel="More options"
       {...handlers}
       {...props}
@@ -524,6 +542,12 @@ const styles = StyleSheet.create((theme) => ({
 // =============================================================================
 // Exports
 // =============================================================================
+
+SplitButton.displayName = 'SplitButton';
+SplitButtonLeading.displayName = 'SplitButtonLeading';
+SplitButtonTrailing.displayName = 'SplitButtonTrailing';
+SplitButtonIcon.displayName = 'SplitButtonIcon';
+SplitButtonLabel.displayName = 'SplitButtonLabel';
 
 export type {
   SplitButtonIconProps,

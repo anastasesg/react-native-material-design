@@ -209,5 +209,7 @@ const styles = StyleSheet.create((theme) => ({
 // Exports
 // =============================================================================
 
+LoadingIndicator.displayName = 'LoadingIndicator';
+
 export type { LoadingIndicatorProps };
 export { LoadingIndicator };

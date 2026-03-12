@@ -22,10 +22,10 @@ const schema = {
 export default function TimePickerScreen() {
   const config = useConfig(schema);
   const v = config.values;
-  const [visible, setVisible] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
   const [selectedTime, setSelectedTime] = React.useState<TimeValue>({ hours: 7, minutes: 30 });
 
-  config.setAction('show', () => setVisible(true));
+  config.setAction('show', () => setOpen(true));
 
   const formatTime = (time: TimeValue) => {
     const h = time.hours;
@@ -58,11 +58,10 @@ export default function TimePickerScreen() {
       />
 
       <TimePicker
-        visible={visible}
-        onDismiss={() => setVisible(false)}
+        open={open}
+        onOpenChange={setOpen}
         onConfirm={(time) => {
           setSelectedTime(time);
-          setVisible(false);
         }}
         value={selectedTime}
         is24Hour={v.is24Hour}

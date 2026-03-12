@@ -16,7 +16,7 @@ import { StyleSheet } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useInteraction } from '../../hooks';
+import { useControllableState, useInteraction } from '../../hooks';
 import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
 import { Icon, type MaterialSymbol } from './icon';
 
@@ -69,10 +69,11 @@ type IconButtonProps = Omit<RNPressableProps, 'style' | 'children'> & {
   shape?: IconButtonShape;
   variant?: IconButtonVariant;
 
-  /** Pass a boolean to enable toggle mode. `undefined` = default (non-toggle) button. */
+  /** Enables toggle mode. When false/undefined, selected/defaultSelected/onSelectedChange are ignored. */
+  toggle?: boolean;
   selected?: boolean;
   defaultSelected?: boolean;
-  onSelectionChange?: (selected: boolean) => void;
+  onSelectedChange?: (selected: boolean) => void;
 
   /** @internal Used by ButtonGroup connected variant to suppress own corner animation. */
   __internal__suppressCornerAnimation?: boolean;
@@ -87,9 +88,10 @@ function IconButton({
   size = 'small',
   variant = 'standard',
   shape = 'rounded',
+  toggle = false,
   selected: selectedProp,
   defaultSelected,
-  onSelectionChange,
+  onSelectedChange,
   __internal__suppressCornerAnimation = false,
   style,
   iconStyle,
@@ -98,10 +100,12 @@ function IconButton({
   onPress,
   ...props
 }: IconButtonProps) {
-  const isToggle = selectedProp !== undefined || onSelectionChange !== undefined || defaultSelected !== undefined;
-  const [selectedState, setSelectedState] = React.useState(defaultSelected ?? false);
-  const selected = selectedProp !== undefined ? selectedProp : selectedState;
-  const selection: IconButtonSelection = isToggle ? (selected ? 'selected' : 'unselected') : 'none';
+  const [selected, setSelected] = useControllableState({
+    value: toggle ? selectedProp : undefined,
+    defaultValue: toggle ? (defaultSelected ?? false) : false,
+    onChange: toggle ? onSelectedChange : undefined,
+  });
+  const selection: IconButtonSelection = toggle ? (selected ? 'selected' : 'unselected') : 'none';
 
   styles.useVariants({ size, variant, shape, selection, disabled });
 
@@ -123,13 +127,11 @@ function IconButton({
   }, [size]);
 
   const handlePress = React.useCallback((e: GestureResponderEvent) => {
-    if (isToggle) {
-      const next = !selected;
-      if (selectedProp === undefined) setSelectedState(next);
-      onSelectionChange?.(next);
+    if (toggle) {
+      setSelected((prev) => !prev);
     }
     onPress?.(e);
-  }, [isToggle, selected, selectedProp, onSelectionChange, onPress]);
+  }, [toggle, setSelected, onPress]);
 
   const displayIcon = typeof name === 'function' ? name({ selected }) : name;
 
@@ -138,8 +140,8 @@ function IconButton({
       style={[styles.root, style]}
       onPress={handlePress}
       disabled={disabled}
-      accessibilityRole={isToggle ? 'togglebutton' : 'button'}
-      accessibilityState={isToggle ? { checked: selected, disabled } : { disabled }}
+      accessibilityRole={toggle ? 'togglebutton' : 'button'}
+      accessibilityState={toggle ? { checked: selected, disabled } : { disabled }}
       {...handlers}
       {...props}
     >
@@ -359,6 +361,8 @@ const styles = StyleSheet.create((theme) => ({
     ],
   },
 }));
+
+IconButton.displayName = 'IconButton';
 
 export type { IconButtonProps, IconButtonSelection, IconButtonShape, IconButtonSize, IconButtonVariant };
 export { IconButton };
