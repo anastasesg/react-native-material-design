@@ -123,3 +123,6 @@ nitrogen/
 .cursor/
 *.backup
 .reports/
+
+# Extracted M3 docs (generated locally via material/scripts)
+material/docs/

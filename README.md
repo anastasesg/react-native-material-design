@@ -26,7 +26,7 @@ There's no `icon` prop, no `label` prop, no `trailing` slot. You compose what yo
 
 ### Built against the spec
 
-Every component is implemented against the actual [Material Design 3 specifications](https://m3.material.io/components) — dimensions, color roles, state layers, motion, and accessibility. The repository includes extracted M3 reference documentation that is checked during development.
+Every component is implemented against the actual [Material Design 3 specifications](https://m3.material.io/components) — dimensions, color roles, state layers, motion, and accessibility. The repository includes tooling to extract M3 reference documentation locally for spec verification during development (see [`material/`](material/README.md)).
 
 ### Animations that feel native
 

@@ -1,6 +1,8 @@
 # Material Design 3 Reference Docs
 
-Extracts Material Design 3 documentation from `m3.material.io` and converts it to local markdown files. The M3 site is JavaScript-heavy and renders content dynamically, so extraction uses Playwright for browser-based crawling.
+Extraction tooling for Material Design 3 documentation from `m3.material.io`. The scripts convert M3's dynamically-rendered pages into local markdown files for spec reference during development.
+
+All extracted documentation in `docs/` is generated locally and is **not** checked into version control. The content belongs to Google and is subject to their terms of use. To generate the docs, run the extraction scripts below.
 
 ## Quick Start
 
