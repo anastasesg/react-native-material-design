@@ -5,7 +5,24 @@ export type SpringConfig = {
   stiffness: number;
 };
 
+export type MotionScheme = 'expressive' | 'standard';
+
+export type SpringSet = {
+  fastSpatial: SpringConfig;
+  fastEffects: SpringConfig;
+  defaultSpatial: SpringConfig;
+  defaultEffects: SpringConfig;
+  slowSpatial: SpringConfig;
+  slowEffects: SpringConfig;
+};
+
 export type Motion = {
+  scheme: MotionScheme;
+  spring: SpringSet;
+  springs: {
+    expressive: SpringSet;
+    standard: SpringSet;
+  };
   easing: {
     emphasized: EasingCurve;
     emphasizedDecelerate: EasingCurve;
@@ -31,13 +48,5 @@ export type Motion = {
     extraLong2: 800;
     extraLong3: 900;
     extraLong4: 1000;
-  };
-  spring: {
-    fastSpatial: SpringConfig;
-    fastEffects: SpringConfig;
-    defaultSpatial: SpringConfig;
-    defaultEffects: SpringConfig;
-    slowSpatial: SpringConfig;
-    slowEffects: SpringConfig;
   };
 };

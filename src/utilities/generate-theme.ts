@@ -1,12 +1,12 @@
 import { argbFromHex, themeFromSourceColor } from '@material/material-color-utilities';
 
-import type { Elevation, Motion, Shape, State, Theme, Typography } from '@/theme';
+import type { Elevation, Motion, MotionScheme, Shape, SpringSet, State, Theme, Typography } from '@/theme';
 
 import { generatePalettes } from './generate-pallettes';
 import { generateScheme } from './generate-scheme';
 import { getDynamicScheme } from './get-dynamic-scheme';
 
-export function generateTheme(dark: boolean, sourceColor: string): Theme {
+export function generateTheme(dark: boolean, sourceColor: string, motionScheme: MotionScheme = 'expressive'): Theme {
   const theme = themeFromSourceColor(argbFromHex(sourceColor));
   const palettes = generatePalettes(theme.palettes);
 
@@ -19,7 +19,30 @@ export function generateTheme(dark: boolean, sourceColor: string): Theme {
     5: { elevation: 5, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 12 },
   };
 
+  const expressiveSprings: SpringSet = {
+    fastSpatial: { damping: 33.9, stiffness: 800 },
+    fastEffects: { damping: 123.3, stiffness: 3800 },
+    defaultSpatial: { damping: 31.2, stiffness: 380 },
+    defaultEffects: { damping: 80, stiffness: 1600 },
+    slowSpatial: { damping: 22.6, stiffness: 200 },
+    slowEffects: { damping: 56.6, stiffness: 800 },
+  };
+
+  const standardSprings: SpringSet = {
+    fastSpatial: { damping: 67.3, stiffness: 1400 },
+    fastEffects: { damping: 123.3, stiffness: 3800 },
+    defaultSpatial: { damping: 47.6, stiffness: 700 },
+    defaultEffects: { damping: 80, stiffness: 1600 },
+    slowSpatial: { damping: 31.2, stiffness: 300 },
+    slowEffects: { damping: 56.6, stiffness: 800 },
+  };
+
+  const springs = { expressive: expressiveSprings, standard: standardSprings };
+
   const motion: Motion = {
+    scheme: motionScheme,
+    spring: springs[motionScheme],
+    springs,
     easing: {
       emphasized: [0.2, 0, 0, 1],
       emphasizedDecelerate: [0.05, 0.7, 0.1, 1],
@@ -45,14 +68,6 @@ export function generateTheme(dark: boolean, sourceColor: string): Theme {
       extraLong2: 800,
       extraLong3: 900,
       extraLong4: 1000,
-    },
-    spring: {
-      fastSpatial: { damping: 33.9, stiffness: 800 },
-      fastEffects: { damping: 123.3, stiffness: 3800 },
-      defaultSpatial: { damping: 31.2, stiffness: 380 },
-      defaultEffects: { damping: 80, stiffness: 1600 },
-      slowSpatial: { damping: 22.6, stiffness: 200 },
-      slowEffects: { damping: 56.6, stiffness: 800 },
     },
   };
 
