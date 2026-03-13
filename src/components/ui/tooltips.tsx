@@ -11,38 +11,61 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import { useControllableState } from '../../hooks';
-import { Button, ButtonLabel } from './button';
+import { createComponentContext, getDisplayName } from '../../utilities';
 import { Text } from './text';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type TooltipAction = {
-  label: string;
-  onPress: () => void;
-};
+type TooltipVariant = 'plain' | 'rich';
 
-type PlainTooltipProps = {
-  message: string;
+type TooltipProps = {
+  /** Tooltip variant. Default: 'plain'. */
+  variant?: TooltipVariant;
+  /** Controls tooltip open state. */
   open?: boolean;
+  /** Default open state for uncontrolled mode. */
   defaultOpen?: boolean;
+  /** Called when open state changes. */
   onOpenChange?: (open: boolean) => void;
+  /** Style applied to the tooltip container. */
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 };
 
-type RichTooltipProps = {
-  subhead?: string;
-  supportingText: string;
-  primaryAction?: TooltipAction;
-  secondaryAction?: TooltipAction;
-  open?: boolean;
-  defaultOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
+type TooltipTriggerProps = {
+  children: React.ReactNode;
+};
+
+type TooltipContentProps = {
+  /** Style applied to the content text. */
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 };
+
+type TooltipSubheadProps = {
+  /** Style applied to the subhead text. */
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+};
+
+type TooltipActionsProps = {
+  /** Style applied to the actions row. */
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+};
+
+// =============================================================================
+// Context
+// =============================================================================
+
+type TooltipContextValue = {
+  variant: TooltipVariant;
+  onOpen: () => void;
+};
+
+const [TooltipProvider, useTooltip] = createComponentContext<TooltipContextValue>('Tooltip');
 
 // =============================================================================
 // Constants (from specs doc)
@@ -63,15 +86,20 @@ const RICH_ANCHOR_GAP = 8; // 8dp gap for rich (larger surface)
 const VIEWPORT_MARGIN = 8; // guidelines: 8dp increments for dynamic positioning
 const AUTO_DISMISS_DURATION = 1500; // guidelines: 1.5 seconds
 
+// Sub-component display names (used for slot identification)
+const TOOLTIP_TRIGGER = 'TooltipTrigger';
+const TOOLTIP_CONTENT = 'TooltipContent';
+const TOOLTIP_SUBHEAD = 'TooltipSubhead';
+const TOOLTIP_ACTIONS = 'TooltipActions';
+
 // =============================================================================
 // Helpers
 // =============================================================================
 
 /**
  * Compute position for the tooltip relative to its anchor.
- * Plain: centered below anchor, 4dp gap.
- * Rich: centered below anchor, 8dp gap.
- * Both clamp to screen edges with VIEWPORT_MARGIN.
+ * Centered below anchor with variant-specific gap.
+ * Clamps to screen edges with VIEWPORT_MARGIN.
  */
 function computeTooltipPosition(
   anchor: LayoutRectangle,
@@ -109,22 +137,24 @@ function computeTooltipPosition(
 }
 
 // =============================================================================
-// PlainTooltip
+// Tooltip
 // =============================================================================
 
-function PlainTooltip({
-  message,
+function Tooltip({
+  variant = 'plain',
   open: openProp,
   defaultOpen = false,
   onOpenChange,
   style,
   children,
-}: PlainTooltipProps) {
+}: TooltipProps) {
   const [open, setOpen] = useControllableState({
     value: openProp,
     defaultValue: defaultOpen,
     onChange: onOpenChange,
   });
+
+  const isRich = variant === 'rich';
 
   const [mounted, setMounted] = React.useState(false);
   const [anchorLayout, setAnchorLayout] = React.useState<LayoutRectangle | null>(null);
@@ -133,6 +163,35 @@ function PlainTooltip({
   const dismissTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const containerOpacity = useSharedValue(0);
+
+  // Sort children into slots
+  let triggerSlot: React.ReactNode = null;
+  let contentSlot: React.ReactNode = null;
+  let subheadSlot: React.ReactNode = null;
+  let actionsSlot: React.ReactNode = null;
+
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    const name = getDisplayName(child);
+
+    switch (name) {
+      case TOOLTIP_TRIGGER:
+        triggerSlot = child;
+        break;
+      case TOOLTIP_CONTENT:
+        contentSlot = child;
+        break;
+      case TOOLTIP_SUBHEAD:
+        subheadSlot = child;
+        break;
+      case TOOLTIP_ACTIONS:
+        actionsSlot = child;
+        break;
+    }
+  });
+
+  const hasActions = actionsSlot !== null;
+  const gap = isRich ? RICH_ANCHOR_GAP : PLAIN_ANCHOR_GAP;
 
   const onCloseAnimationEnd = (finished?: boolean) => {
     'worklet';
@@ -171,146 +230,8 @@ function PlainTooltip({
         easing: Easing.bezier(...theme.motion.easing.emphasizedDecelerate),
       });
 
-      // Auto-dismiss after timeout
-      dismissTimer.current = setTimeout(() => {
-        setOpen(false);
-      }, AUTO_DISMISS_DURATION);
-    } else if (mounted) {
-      containerOpacity.value = withTiming(
-        0,
-        {
-          duration: theme.motion.duration.short3,
-          easing: Easing.bezier(...theme.motion.easing.emphasizedAccelerate),
-        },
-        onCloseAnimationEnd,
-      );
-      setTooltipSize(null);
-    }
-
-    return () => {
-      if (dismissTimer.current) {
-        clearTimeout(dismissTimer.current);
-        dismissTimer.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const animatedContainerStyle = useAnimatedStyle(() => ({
-    opacity: containerOpacity.value,
-  }));
-
-  const handleDismiss = React.useCallback(() => {
-    setOpen(false);
-  }, [setOpen]);
-
-  const handleLongPress = React.useCallback(() => {
-    setOpen(true);
-  }, [setOpen]);
-
-  const tooltipPosition = React.useMemo(
-    () => (anchorLayout ? computeTooltipPosition(anchorLayout, tooltipSize, PLAIN_ANCHOR_GAP) : undefined),
-    [anchorLayout, tooltipSize],
-  );
-
-  return (
-    <View ref={anchorRef as any} collapsable={false}>
-      {React.isValidElement(children)
-        ? React.cloneElement(children as React.ReactElement<any>, { onLongPress: handleLongPress })
-        : children}
-      {mounted && (
-        <Modal transparent visible onRequestClose={handleDismiss} statusBarTranslucent>
-          <RNPressable
-            style={StyleSheet.absoluteFillObject}
-            onPress={handleDismiss}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss tooltip"
-          />
-          <Animated.View
-            onLayout={handleTooltipLayout}
-            style={[tooltipStyles.plainContainer, animatedContainerStyle, tooltipPosition, style]}
-            accessibilityRole="text"
-            accessibilityLabel={message}
-          >
-            <Text variant="body" size="small" style={tooltipStyles.plainText}>
-              {message}
-            </Text>
-          </Animated.View>
-        </Modal>
-      )}
-    </View>
-  );
-}
-
-// =============================================================================
-// RichTooltip
-// =============================================================================
-
-function RichTooltip({
-  subhead,
-  supportingText,
-  primaryAction,
-  secondaryAction,
-  open: openProp,
-  defaultOpen = false,
-  onOpenChange,
-  style,
-  children,
-}: RichTooltipProps) {
-  const [open, setOpen] = useControllableState({
-    value: openProp,
-    defaultValue: defaultOpen,
-    onChange: onOpenChange,
-  });
-  const hasActions = !!(primaryAction || secondaryAction);
-
-  const [mounted, setMounted] = React.useState(false);
-  const [anchorLayout, setAnchorLayout] = React.useState<LayoutRectangle | null>(null);
-  const [tooltipSize, setTooltipSize] = React.useState<{ width: number; height: number } | null>(null);
-  const anchorRef = React.useRef<View | null>(null);
-  const dismissTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const containerOpacity = useSharedValue(0);
-
-  const onCloseAnimationEnd = (finished?: boolean) => {
-    'worklet';
-    if (finished) {
-      runOnJS(setMounted)(false);
-    }
-  };
-
-  const measureAnchor = React.useCallback(() => {
-    const node = anchorRef.current;
-    if (node) {
-      (node as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-        setAnchorLayout({ x, y, width, height });
-      });
-    }
-  }, []);
-
-  const handleTooltipLayout = React.useCallback((event: {
-    nativeEvent: { layout: { width: number; height: number } };
-  }) => {
-    const { width, height } = event.nativeEvent.layout;
-    setTooltipSize((prev) => {
-      if (prev && prev.width === width && prev.height === height) return prev;
-      return { width, height };
-    });
-  }, []);
-
-  // Open/close animation
-  React.useEffect(() => {
-    const theme = UnistylesRuntime.getTheme();
-    if (open) {
-      measureAnchor();
-      setMounted(true);
-      containerOpacity.value = withTiming(1, {
-        duration: theme.motion.duration.medium2,
-        easing: Easing.bezier(...theme.motion.easing.emphasizedDecelerate),
-      });
-
-      // Auto-dismiss only if no actions (per M3 accessibility guidelines)
-      if (!hasActions) {
+      // Auto-dismiss: plain always, rich only when no actions
+      if (!isRich || !hasActions) {
         dismissTimer.current = setTimeout(() => {
           setOpen(false);
         }, AUTO_DISMISS_DURATION);
@@ -344,30 +265,24 @@ function RichTooltip({
     setOpen(false);
   }, [setOpen]);
 
-  const handleLongPress = React.useCallback(() => {
+  const handleOpen = React.useCallback(() => {
     setOpen(true);
   }, [setOpen]);
 
-  const handlePrimaryAction = React.useCallback(() => {
-    primaryAction?.onPress();
-    setOpen(false);
-  }, [primaryAction, setOpen]);
-
-  const handleSecondaryAction = React.useCallback(() => {
-    secondaryAction?.onPress();
-    setOpen(false);
-  }, [secondaryAction, setOpen]);
-
   const tooltipPosition = React.useMemo(
-    () => (anchorLayout ? computeTooltipPosition(anchorLayout, tooltipSize, RICH_ANCHOR_GAP) : undefined),
-    [anchorLayout, tooltipSize],
+    () => (anchorLayout ? computeTooltipPosition(anchorLayout, tooltipSize, gap) : undefined),
+    [anchorLayout, tooltipSize, gap],
   );
 
+  const ctx = React.useMemo<TooltipContextValue>(() => ({ variant, onOpen: handleOpen }), [variant, handleOpen]);
+
+  const containerBaseStyle = isRich ? tooltipStyles.richContainer : tooltipStyles.plainContainer;
+
   return (
-    <View ref={anchorRef as any} collapsable={false}>
-      {React.isValidElement(children)
-        ? React.cloneElement(children as React.ReactElement<any>, { onLongPress: handleLongPress })
-        : children}
+    <TooltipProvider value={ctx}>
+      <View ref={anchorRef as any} collapsable={false}>
+        {triggerSlot}
+      </View>
       {mounted && (
         <Modal transparent visible onRequestClose={handleDismiss} statusBarTranslucent>
           <RNPressable
@@ -378,36 +293,72 @@ function RichTooltip({
           />
           <Animated.View
             onLayout={handleTooltipLayout}
-            style={[tooltipStyles.richContainer, animatedContainerStyle, tooltipPosition, style]}
+            style={[containerBaseStyle, animatedContainerStyle, tooltipPosition, style]}
             accessibilityRole="text"
           >
-            {subhead && (
-              <Text variant="title" size="small" style={tooltipStyles.richSubhead}>
-                {subhead}
-              </Text>
-            )}
-            <Text variant="body" size="medium" style={tooltipStyles.richSupportingText}>
-              {supportingText}
-            </Text>
-            {hasActions && (
-              <View style={tooltipStyles.richActionsRow}>
-                {secondaryAction && (
-                  <Button variant="text" size="small" onPress={handleSecondaryAction}>
-                    <ButtonLabel>{secondaryAction.label}</ButtonLabel>
-                  </Button>
-                )}
-                {primaryAction && (
-                  <Button variant="text" size="small" onPress={handlePrimaryAction}>
-                    <ButtonLabel>{primaryAction.label}</ButtonLabel>
-                  </Button>
-                )}
-              </View>
-            )}
+            {isRich && subheadSlot}
+            {contentSlot}
+            {isRich && actionsSlot}
           </Animated.View>
         </Modal>
       )}
-    </View>
+    </TooltipProvider>
   );
+}
+
+// =============================================================================
+// TooltipTrigger
+// =============================================================================
+
+function TooltipTrigger({ children }: TooltipTriggerProps) {
+  const { onOpen } = useTooltip();
+
+  return (
+    <>
+      {React.isValidElement(children)
+        ? React.cloneElement(children as React.ReactElement<any>, { onLongPress: onOpen })
+        : children}
+    </>
+  );
+}
+
+// =============================================================================
+// TooltipContent
+// =============================================================================
+
+function TooltipContent({ style, children }: TooltipContentProps) {
+  const { variant } = useTooltip();
+  const isRich = variant === 'rich';
+
+  return (
+    <Text
+      variant="body"
+      size={isRich ? 'medium' : 'small'}
+      style={[isRich ? tooltipStyles.richSupportingText : tooltipStyles.plainText, style]}
+    >
+      {children}
+    </Text>
+  );
+}
+
+// =============================================================================
+// TooltipSubhead
+// =============================================================================
+
+function TooltipSubhead({ style, children }: TooltipSubheadProps) {
+  return (
+    <Text variant="title" size="small" style={[tooltipStyles.richSubhead, style]}>
+      {children}
+    </Text>
+  );
+}
+
+// =============================================================================
+// TooltipActions
+// =============================================================================
+
+function TooltipActions({ style, children }: TooltipActionsProps) {
+  return <View style={[tooltipStyles.richActionsRow, style]}>{children}</View>;
 }
 
 // =============================================================================
@@ -481,8 +432,18 @@ const tooltipStyles = StyleSheet.create((theme) => ({
 // Exports
 // =============================================================================
 
-PlainTooltip.displayName = 'PlainTooltip';
-RichTooltip.displayName = 'RichTooltip';
+Tooltip.displayName = 'Tooltip';
+TooltipTrigger.displayName = TOOLTIP_TRIGGER;
+TooltipContent.displayName = TOOLTIP_CONTENT;
+TooltipSubhead.displayName = TOOLTIP_SUBHEAD;
+TooltipActions.displayName = TOOLTIP_ACTIONS;
 
-export type { PlainTooltipProps, RichTooltipProps, TooltipAction };
-export { PlainTooltip, RichTooltip };
+export type {
+  TooltipActionsProps,
+  TooltipContentProps,
+  TooltipProps,
+  TooltipSubheadProps,
+  TooltipTriggerProps,
+  TooltipVariant,
+};
+export { Tooltip, TooltipActions, TooltipContent, TooltipSubhead, TooltipTrigger };

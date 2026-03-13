@@ -2,7 +2,15 @@ import React from 'react';
 import { View } from 'react-native';
 import { Button, ButtonLabel } from 'react-native-material-design/ui/button';
 import { Divider } from 'react-native-material-design/ui/divider';
-import { SideSheet } from 'react-native-material-design/ui/side-sheets';
+import {
+  SideSheet,
+  SideSheetActions,
+  SideSheetBack,
+  SideSheetClose,
+  SideSheetContent,
+  SideSheetHeader,
+  SideSheetHeadline,
+} from 'react-native-material-design/ui/side-sheets';
 import { Text } from 'react-native-material-design/ui/text';
 import { StyleSheet } from 'react-native-unistyles';
 
@@ -20,6 +28,7 @@ const schema = {
   headline: { type: 'text', label: 'Headline', default: 'Filters' },
   closeButton: { type: 'switch', label: 'Close button', default: true },
   backButton: { type: 'switch', label: 'Back button', default: false },
+  showActions: { type: 'switch', label: 'Actions', default: false },
   actionDivider: { type: 'switch', label: 'Action divider', default: false },
   show: { type: 'action', label: 'Show side sheet' },
 } as const satisfies ConfigSchema;
@@ -32,38 +41,36 @@ export default function SideSheetsScreen() {
   config.setAction('show', () => setOpen(true));
 
   const isStandard = v.variant === 'standard';
-
-  const actions = v.actionDivider ? (
-    <>
-      <Button variant="text" size="small" onPress={() => setOpen(false)}>
-        <ButtonLabel>Cancel</ButtonLabel>
-      </Button>
-      <Button variant="filled" size="small" onPress={() => setOpen(false)}>
-        <ButtonLabel>Save</ButtonLabel>
-      </Button>
-    </>
-  ) : undefined;
+  const isModal = !isStandard;
 
   const sheet = (
-    <SideSheet
-      variant={v.variant}
-      open={open}
-      onOpenChange={setOpen}
-      headline={v.headline}
-      showBackButton={v.backButton && !isStandard}
-      onBack={() => setOpen(false)}
-      showActionDivider={v.actionDivider}
-      actions={actions}
-    >
-      <View style={styles.sheetContent}>
-        <Text variant="body" size="medium" style={styles.sheetBody}>
-          This is an example of content inside a side sheet.
-        </Text>
-        <Divider />
-        <Text variant="body" size="medium" style={styles.sheetBody}>
-          Side sheets can contain filters, details, or supplementary content.
-        </Text>
-      </View>
+    <SideSheet variant={v.variant} open={open} onOpenChange={setOpen}>
+      <SideSheetHeader>
+        {isModal && v.backButton ? <SideSheetBack onPress={() => setOpen(false)} /> : null}
+        <SideSheetHeadline>{v.headline}</SideSheetHeadline>
+        {v.closeButton ? <SideSheetClose /> : null}
+      </SideSheetHeader>
+      <SideSheetContent>
+        <View style={styles.sheetContent}>
+          <Text variant="body" size="medium" style={styles.sheetBody}>
+            This is an example of content inside a side sheet.
+          </Text>
+          <Divider />
+          <Text variant="body" size="medium" style={styles.sheetBody}>
+            Side sheets can contain filters, details, or supplementary content.
+          </Text>
+        </View>
+      </SideSheetContent>
+      {v.showActions ? (
+        <SideSheetActions showDivider={v.actionDivider}>
+          <Button variant="text" size="small" onPress={() => setOpen(false)}>
+            <ButtonLabel>Cancel</ButtonLabel>
+          </Button>
+          <Button variant="filled" size="small" onPress={() => setOpen(false)}>
+            <ButtonLabel>Save</ButtonLabel>
+          </Button>
+        </SideSheetActions>
+      ) : null}
     </SideSheet>
   );
 
@@ -83,7 +90,7 @@ export default function SideSheetsScreen() {
         />
         {isStandard && open && sheet}
       </View>
-      {!isStandard && sheet}
+      {isModal && sheet}
     </View>
   );
 }

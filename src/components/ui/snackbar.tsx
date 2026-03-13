@@ -5,19 +5,14 @@
 /// Accessibility: https://m3.material.io/components/snackbar/accessibility
 
 import React from 'react';
-import {
-  type LayoutChangeEvent,
-  type StyleProp,
-  type TextLayoutEvent,
-  type TextStyle,
-  type ViewStyle,
-} from 'react-native';
+import type { LayoutChangeEvent, StyleProp, TextLayoutEvent, ViewStyle } from 'react-native';
 import { Pressable as RNPressable, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import { useControllableState, useInteraction } from '../../hooks';
+import { createComponentContext, getDisplayName } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Icon } from './icon';
 import { Text } from './text';
@@ -27,14 +22,6 @@ import { Text } from './text';
 // =============================================================================
 
 type SnackbarProps = {
-  /** The message text displayed in the snackbar (supporting text). */
-  message: string;
-  /** Optional action button label. */
-  action?: string;
-  /** Called when the action button is pressed. */
-  onAction?: () => void;
-  /** Whether to show the close (dismiss) icon button. */
-  showClose?: boolean;
   /** Controls snackbar open state. */
   open?: boolean;
   /** Default open state for uncontrolled mode. */
@@ -52,11 +39,40 @@ type SnackbarProps = {
   duration?: number;
   /** Style applied to the snackbar container. */
   style?: StyleProp<ViewStyle>;
-  /** Style applied to the message text. */
-  messageStyle?: StyleProp<TextStyle>;
-  /** Style applied to the action button. */
-  actionStyle?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
 };
+
+type SnackbarMessageProps = {
+  /** Style applied to the message text. */
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+};
+
+type SnackbarActionProps = {
+  /** Called when the action button is pressed. */
+  onPress?: () => void;
+  /** Style applied to the action button. */
+  style?: StyleProp<ViewStyle>;
+  /** Action label text. */
+  children: React.ReactNode;
+};
+
+type SnackbarCloseProps = {
+  /** Override the default dismiss behavior. */
+  onPress?: () => void;
+};
+
+// =============================================================================
+// Context
+// =============================================================================
+
+type SnackbarContextValue = {
+  dismiss: () => void;
+  setActionOnOwnLine: (stacked: boolean) => void;
+  setIsTwoLine: (twoLine: boolean) => void;
+};
+
+const [SnackbarProvider, useSnackbar] = createComponentContext<SnackbarContextValue>('Snackbar');
 
 // =============================================================================
 // Constants
@@ -66,38 +82,29 @@ const DEFAULT_DURATION = 4000;
 const SWIPE_DISMISS_THRESHOLD = 60;
 const SWIPE_VELOCITY_THRESHOLD = 300;
 
+// Sub-component display names (used for slot identification)
+const SNACKBAR_MESSAGE = 'SnackbarMessage';
+const SNACKBAR_ACTION = 'SnackbarAction';
+const SNACKBAR_CLOSE = 'SnackbarClose';
+
 // =============================================================================
 // Snackbar
 // =============================================================================
 
 function Snackbar({
-  message,
-  action,
-  onAction,
-  showClose = false,
   open: openProp,
   defaultOpen = false,
   onOpenChange,
   onDismiss,
   duration,
   style,
-  messageStyle,
-  actionStyle,
+  children,
 }: SnackbarProps) {
   const [open, setOpen] = useControllableState({
     value: openProp,
     defaultValue: defaultOpen,
     onChange: onOpenChange,
   });
-
-  // Determine effective auto-dismiss duration.
-  // Per M3 accessibility guidelines: snackbars with actions should not auto-dismiss
-  // unless the consumer explicitly overrides by providing a duration.
-  const effectiveDuration = React.useMemo(() => {
-    if (duration !== undefined) return duration;
-    if (action) return 0; // no auto-dismiss when action is present
-    return DEFAULT_DURATION;
-  }, [duration, action]);
 
   // open/mounted decoupling: `mounted` keeps component in tree during exit animation
   const [mounted, setMounted] = React.useState(false);
@@ -107,10 +114,6 @@ function Snackbar({
 
   // Whether the message wraps to two lines (for 68dp min height)
   const [isTwoLine, setIsTwoLine] = React.useState(false);
-
-  // Interaction state for sub-element state layers
-  const { progress: actionProgress, handlers: actionHandlers } = useInteraction('press');
-  const { progress: closeProgress, handlers: closeHandlers } = useInteraction('press');
 
   // Animation shared values
   const translateY = useSharedValue(80);
@@ -132,6 +135,39 @@ function Snackbar({
       runOnJS(setMounted)(false);
     }
   }, []);
+
+  // Sort children into slots
+  let messageSlot: React.ReactNode = null;
+  let actionSlot: React.ReactNode = null;
+  let closeSlot: React.ReactNode = null;
+
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    const name = getDisplayName(child);
+
+    switch (name) {
+      case SNACKBAR_MESSAGE:
+        messageSlot = child;
+        break;
+      case SNACKBAR_ACTION:
+        actionSlot = child;
+        break;
+      case SNACKBAR_CLOSE:
+        closeSlot = child;
+        break;
+    }
+  });
+
+  const hasAction = actionSlot !== null;
+
+  // Determine effective auto-dismiss duration.
+  // Per M3 accessibility guidelines: snackbars with actions should not auto-dismiss
+  // unless the consumer explicitly overrides by providing a duration.
+  const effectiveDuration = React.useMemo(() => {
+    if (duration !== undefined) return duration;
+    if (hasAction) return 0; // no auto-dismiss when action is present
+    return DEFAULT_DURATION;
+  }, [duration, hasAction]);
 
   // Animate in/out based on `open`
   React.useEffect(() => {
@@ -188,41 +224,15 @@ function Snackbar({
       }
     });
 
-  // Handle action text layout to detect overflow
-  const handleActionLayout = React.useCallback((event: LayoutChangeEvent) => {
-    const { width } = event.nativeEvent.layout;
-    // If the action button is wider than ~120dp, move it to its own line
-    // This mirrors M3's "two lines with longer action" configuration
-    if (width > 120) {
-      setActionOnOwnLine(true);
-    }
-  }, []);
-
-  // Detect two-line message for 68dp min height
-  const handleTextLayout = React.useCallback((event: TextLayoutEvent) => {
-    const lineCount = event.nativeEvent.lines.length;
-    setIsTwoLine(lineCount > 1);
-  }, []);
-
-  const handleAction = React.useCallback(() => {
-    onAction?.();
-  }, [onAction]);
-
-  const handleClose = React.useCallback(() => {
-    setOpen(false);
-    onDismissRef.current?.();
-  }, [setOpen]);
-
   // Animated styles
   const animatedContainerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
     opacity: opacity.value,
   }));
 
-  if (!mounted) return null;
+  const ctx = React.useMemo<SnackbarContextValue>(() => ({ dismiss, setActionOnOwnLine, setIsTwoLine }), [dismiss]);
 
-  const hasAction = !!action;
-  const hasClose = showClose;
+  if (!mounted) return null;
 
   return (
     <GestureDetector gesture={dismissGesture}>
@@ -239,68 +249,106 @@ function Snackbar({
             style,
           ]}
         >
-          {/* Row 1: message (and inline action + close if not stacked) */}
-          <View style={snackbarStyles.contentRow}>
-            <Text
-              variant="body"
-              size="medium"
-              style={[snackbarStyles.message, messageStyle]}
-              numberOfLines={2}
-              onTextLayout={handleTextLayout}
-            >
-              {message}
-            </Text>
-
-            {hasAction && !actionOnOwnLine && (
-              <RNPressable
-                onPress={handleAction}
-                {...actionHandlers}
-                accessibilityRole="button"
-                accessibilityLabel={action}
-                style={[snackbarStyles.actionButton, actionStyle]}
-                onLayout={handleActionLayout}
-              >
-                <Text variant="label" size="large" style={snackbarStyles.actionLabel}>
-                  {action}
-                </Text>
-                <StateLayer progress={actionProgress} color="inversePrimary" />
-              </RNPressable>
-            )}
-
-            {hasClose && (
-              <RNPressable
-                onPress={handleClose}
-                {...closeHandlers}
-                accessibilityRole="button"
-                accessibilityLabel="Dismiss"
-                style={snackbarStyles.closeButton}
-              >
-                <Icon name="close" size={24} style={snackbarStyles.closeIcon} />
-                <StateLayer progress={closeProgress} color="inverseOnSurface" />
-              </RNPressable>
-            )}
-          </View>
-
-          {/* Row 2: action on its own line (longer action configuration) */}
-          {hasAction && actionOnOwnLine && (
-            <View style={snackbarStyles.stackedActionRow}>
-              <RNPressable
-                onPress={handleAction}
-                {...actionHandlers}
-                accessibilityRole="button"
-                accessibilityLabel={action}
-                style={[snackbarStyles.actionButton, actionStyle]}
-              >
-                <Text variant="label" size="large" style={snackbarStyles.actionLabel}>
-                  {action}
-                </Text>
-                <StateLayer progress={actionProgress} color="inversePrimary" />
-              </RNPressable>
+          <SnackbarProvider value={ctx}>
+            {/* Row 1: message (and inline action + close if not stacked) */}
+            <View style={snackbarStyles.contentRow}>
+              {messageSlot}
+              {!actionOnOwnLine && actionSlot}
+              {closeSlot}
             </View>
-          )}
+
+            {/* Row 2: action on its own line (longer action configuration) */}
+            {actionOnOwnLine && <View style={snackbarStyles.stackedActionRow}>{actionSlot}</View>}
+          </SnackbarProvider>
         </View>
       </Animated.View>
     </GestureDetector>
+  );
+}
+
+// =============================================================================
+// SnackbarMessage
+// =============================================================================
+
+function SnackbarMessage({ style, children }: SnackbarMessageProps) {
+  const { setIsTwoLine } = useSnackbar();
+
+  const handleTextLayout = React.useCallback((event: TextLayoutEvent) => {
+    const lineCount = event.nativeEvent.lines.length;
+    setIsTwoLine(lineCount > 1);
+  }, [setIsTwoLine]);
+
+  return (
+    <Text
+      variant="body"
+      size="medium"
+      style={[snackbarStyles.message, style]}
+      numberOfLines={2}
+      onTextLayout={handleTextLayout}
+    >
+      {children}
+    </Text>
+  );
+}
+
+// =============================================================================
+// SnackbarAction
+// =============================================================================
+
+function SnackbarAction({ onPress, style, children }: SnackbarActionProps) {
+  const { setActionOnOwnLine } = useSnackbar();
+  const { progress, handlers } = useInteraction('press');
+
+  const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    // If the action button is wider than ~120dp, move it to its own line
+    // This mirrors M3's "two lines with longer action" configuration
+    setActionOnOwnLine(width > 120);
+  }, [setActionOnOwnLine]);
+
+  return (
+    <RNPressable
+      onPress={onPress}
+      {...handlers}
+      accessibilityRole="button"
+      style={[snackbarStyles.actionButton, style]}
+      onLayout={handleLayout}
+    >
+      <Text variant="label" size="large" style={snackbarStyles.actionLabel}>
+        {children}
+      </Text>
+      <StateLayer progress={progress} color="inversePrimary" />
+    </RNPressable>
+  );
+}
+
+// =============================================================================
+// SnackbarClose
+// =============================================================================
+
+function SnackbarClose({ onPress }: SnackbarCloseProps) {
+  const { dismiss } = useSnackbar();
+  const { progress, handlers } = useInteraction('press');
+
+  const handlePress = React.useCallback(() => {
+    if (onPress) {
+      onPress();
+    } else {
+      dismiss();
+    }
+  }, [onPress, dismiss]);
+
+  return (
+    <RNPressable
+      onPress={handlePress}
+      {...handlers}
+      accessibilityRole="button"
+      accessibilityLabel="Dismiss"
+      style={snackbarStyles.closeButton}
+    >
+      <Icon name="close" size={24} style={snackbarStyles.closeIcon} />
+      <StateLayer progress={progress} color="inverseOnSurface" />
+    </RNPressable>
   );
 }
 
@@ -380,6 +428,9 @@ const snackbarStyles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 
 Snackbar.displayName = 'Snackbar';
+SnackbarMessage.displayName = SNACKBAR_MESSAGE;
+SnackbarAction.displayName = SNACKBAR_ACTION;
+SnackbarClose.displayName = SNACKBAR_CLOSE;
 
-export type { SnackbarProps };
-export { Snackbar };
+export type { SnackbarActionProps, SnackbarCloseProps, SnackbarMessageProps, SnackbarProps };
+export { Snackbar, SnackbarAction, SnackbarClose, SnackbarMessage };

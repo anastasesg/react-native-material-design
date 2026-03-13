@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Snackbar } from 'react-native-material-design/ui/snackbar';
+import { Snackbar, SnackbarAction, SnackbarClose, SnackbarMessage } from 'react-native-material-design/ui/snackbar';
 import { Text } from 'react-native-material-design/ui/text';
 import { StyleSheet } from 'react-native-unistyles';
 
@@ -44,15 +44,11 @@ export default function SnackbarScreen() {
         )}
       />
 
-      <Snackbar
-        message={v.message}
-        action={v.action || undefined}
-        onAction={() => setVisible(false)}
-        showClose={v.showClose}
-        open={visible}
-        onOpenChange={setVisible}
-        duration={v.action ? 0 : v.duration}
-      />
+      <Snackbar open={visible} onOpenChange={setVisible} duration={v.action ? 0 : v.duration}>
+        <SnackbarMessage>{v.message}</SnackbarMessage>
+        {v.action ? <SnackbarAction onPress={() => setVisible(false)}>{v.action}</SnackbarAction> : null}
+        {v.showClose ? <SnackbarClose /> : null}
+      </Snackbar>
     </View>
   );
 }

@@ -18,6 +18,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { useControllableState } from '../../hooks';
+import { createComponentContext, getDisplayName } from '../../utilities';
 import { Divider } from './divider';
 import { IconButton } from './icon-button';
 import { Text } from './text';
@@ -37,29 +38,55 @@ type SideSheetProps = {
   defaultOpen?: boolean;
   /** Called when the open state changes (close button, scrim tap, back button). */
   onOpenChange?: (open: boolean) => void;
-  /** Headline text displayed at the top of the sheet. */
-  headline?: string;
-  /** Whether to show the close icon button. Defaults to true. */
-  showCloseButton?: boolean;
-  /** Called when the close icon button is pressed. Also calls onOpenChange(false). */
-  onClose?: () => void;
-  /** Whether to show the back icon button (modal only). Defaults to false. */
-  showBackButton?: boolean;
-  /** Called when the back icon button is pressed. */
-  onBack?: () => void;
-  /** Content rendered in the bottom actions area. */
-  actions?: React.ReactNode;
-  /** Whether to show a divider above the actions area. Defaults to false. */
-  showActionDivider?: boolean;
+  /** Accessibility label for the sheet container. */
+  accessibilityLabel?: string;
   /** Style applied to the sheet container. */
   style?: StyleProp<ViewStyle>;
   /** Style applied to the scrim overlay (modal variant only). */
   scrimStyle?: StyleProp<ViewStyle>;
-  /** Style applied to the scrollable content area. */
-  contentStyle?: StyleProp<ViewStyle>;
-  /** Content rendered inside the sheet body (scrollable). */
   children?: React.ReactNode;
 };
+
+type SideSheetHeaderProps = {
+  children?: React.ReactNode;
+};
+
+type SideSheetHeadlineProps = {
+  children: React.ReactNode;
+};
+
+type SideSheetBackProps = {
+  /** Called when the back button is pressed. */
+  onPress?: () => void;
+};
+
+type SideSheetCloseProps = {
+  /** Override the default dismiss behavior. */
+  onPress?: () => void;
+};
+
+type SideSheetContentProps = {
+  /** Style applied to the scrollable content area. */
+  style?: StyleProp<ViewStyle>;
+  children?: React.ReactNode;
+};
+
+type SideSheetActionsProps = {
+  /** Whether to show a divider above the actions area. */
+  showDivider?: boolean;
+  children?: React.ReactNode;
+};
+
+// =============================================================================
+// Context
+// =============================================================================
+
+type SideSheetContextValue = {
+  variant: SideSheetVariant;
+  dismiss: () => void;
+};
+
+const [SideSheetProvider, useSideSheet] = createComponentContext<SideSheetContextValue>('SideSheet');
 
 // =============================================================================
 // Constants
@@ -74,6 +101,14 @@ const ACTIONS_TOP_PADDING = 16;
 const ACTIONS_BOTTOM_PADDING = 24;
 const SCRIM_OPACITY = 0.32;
 
+// Sub-component display names (used for slot identification)
+const SIDE_SHEET_HEADER = 'SideSheetHeader';
+const SIDE_SHEET_HEADLINE = 'SideSheetHeadline';
+const SIDE_SHEET_BACK = 'SideSheetBack';
+const SIDE_SHEET_CLOSE = 'SideSheetClose';
+const SIDE_SHEET_CONTENT = 'SideSheetContent';
+const SIDE_SHEET_ACTIONS = 'SideSheetActions';
+
 // =============================================================================
 // SideSheet
 // =============================================================================
@@ -83,16 +118,9 @@ function SideSheet({
   open: openProp,
   defaultOpen = false,
   onOpenChange,
-  headline,
-  showCloseButton = true,
-  onClose,
-  showBackButton = false,
-  onBack,
-  actions,
-  showActionDivider = false,
+  accessibilityLabel = 'Side sheet',
   style,
   scrimStyle,
-  contentStyle,
   children,
 }: SideSheetProps) {
   sheetStyles.useVariants({ variant });
@@ -103,20 +131,15 @@ function SideSheet({
     onChange: onOpenChange,
   });
 
-  const handleClose = React.useCallback(() => {
-    onClose?.();
+  const dismiss = React.useCallback(() => {
     setOpen(false);
-  }, [setOpen, onClose]);
-
-  const handleBack = React.useCallback(() => {
-    onBack?.();
-  }, [onBack]);
+  }, [setOpen]);
 
   const handleScrimPress = React.useCallback(() => {
     if (variant === 'modal') {
-      handleClose();
+      dismiss();
     }
-  }, [variant, handleClose]);
+  }, [variant, dismiss]);
 
   // `visible` keeps the Modal mounted during exit animations.
   const [visible, setVisible] = React.useState(false);
@@ -153,70 +176,50 @@ function SideSheet({
     opacity: interpolate(progress.value, [0, 1], [0, SCRIM_OPACITY], Extrapolation.CLAMP),
   }));
 
-  if (!visible) return null;
+  // Sort children into slots
+  let headerSlot: React.ReactNode = null;
+  let contentSlot: React.ReactNode = null;
+  let actionsSlot: React.ReactNode = null;
 
-  const hasBackButton = variant === 'modal' && showBackButton;
-  const startPadding = hasBackButton ? MODAL_START_PADDING_WITH_ICON : HORIZONTAL_PADDING;
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    const name = getDisplayName(child);
+
+    switch (name) {
+      case SIDE_SHEET_HEADER:
+        headerSlot = child;
+        break;
+      case SIDE_SHEET_CONTENT:
+        contentSlot = child;
+        break;
+      case SIDE_SHEET_ACTIONS:
+        actionsSlot = child;
+        break;
+    }
+  });
+
+  const ctx = React.useMemo<SideSheetContextValue>(() => ({ variant, dismiss }), [variant, dismiss]);
+
+  if (!visible) return null;
 
   const sheetContent = (
     <Animated.View
       style={[sheetStyles.container, animatedSheetStyle, style]}
       role="dialog"
       accessibilityViewIsModal={variant === 'modal'}
-      accessibilityLabel={headline ? `${headline} side sheet` : 'Side sheet'}
+      accessibilityLabel={accessibilityLabel}
     >
-      {/* Header row: back icon (optional) | headline | close icon */}
-      <View style={[sheetStyles.header, { paddingStart: startPadding }]}>
-        {hasBackButton && (
-          <IconButton
-            name="arrow_back"
-            size="small"
-            variant="standard"
-            onPress={handleBack}
-            accessibilityLabel="Go back"
-          />
-        )}
-        {headline ? (
-          <Text variant="title" size="large" style={sheetStyles.headline} numberOfLines={1}>
-            {headline}
-          </Text>
-        ) : (
-          <View style={sheetStyles.headlineSpacer} />
-        )}
-        {showCloseButton && (
-          <IconButton
-            name="close"
-            size="small"
-            variant="standard"
-            onPress={handleClose}
-            accessibilityLabel="Close side sheet"
-          />
-        )}
-      </View>
-
-      {/* Scrollable content */}
-      <ScrollView
-        style={[sheetStyles.scrollContent, contentStyle]}
-        contentContainerStyle={sheetStyles.scrollContentContainer}
-        showsVerticalScrollIndicator
-        bounces={false}
-      >
-        {children}
-      </ScrollView>
-
-      {/* Actions area (optional) */}
-      {actions && (
-        <>
-          {showActionDivider && <Divider />}
-          <View style={sheetStyles.actionsContainer}>{actions}</View>
-        </>
-      )}
+      <SideSheetProvider value={ctx}>
+        {headerSlot}
+        {contentSlot}
+        {actionsSlot}
+      </SideSheetProvider>
     </Animated.View>
   );
 
   if (variant === 'modal') {
     return (
-      <Modal transparent visible onRequestClose={handleClose} statusBarTranslucent>
+      <Modal transparent visible onRequestClose={dismiss} statusBarTranslucent>
         {/* Scrim */}
         <RNPressable
           style={StyleSheet.absoluteFillObject}
@@ -241,6 +244,123 @@ function SideSheet({
       <Divider orientation="vertical" />
       {sheetContent}
     </View>
+  );
+}
+
+// =============================================================================
+// SideSheetHeader
+// =============================================================================
+
+function SideSheetHeader({ children }: SideSheetHeaderProps) {
+  // Two-level slot sorting: extract back, headline, close from children
+  let backSlot: React.ReactNode = null;
+  let headlineSlot: React.ReactNode = null;
+  let closeSlot: React.ReactNode = null;
+
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    const name = getDisplayName(child);
+
+    switch (name) {
+      case SIDE_SHEET_BACK:
+        backSlot = child;
+        break;
+      case SIDE_SHEET_HEADLINE:
+        headlineSlot = child;
+        break;
+      case SIDE_SHEET_CLOSE:
+        closeSlot = child;
+        break;
+    }
+  });
+
+  const hasBack = backSlot !== null;
+  const startPadding = hasBack ? MODAL_START_PADDING_WITH_ICON : HORIZONTAL_PADDING;
+
+  return (
+    <View style={[sheetStyles.header, { paddingStart: startPadding }]}>
+      {backSlot}
+      {headlineSlot ?? <View style={sheetStyles.headlineSpacer} />}
+      {closeSlot}
+    </View>
+  );
+}
+
+// =============================================================================
+// SideSheetHeadline
+// =============================================================================
+
+function SideSheetHeadline({ children }: SideSheetHeadlineProps) {
+  return (
+    <Text variant="title" size="large" style={sheetStyles.headline} numberOfLines={1}>
+      {children}
+    </Text>
+  );
+}
+
+// =============================================================================
+// SideSheetBack
+// =============================================================================
+
+function SideSheetBack({ onPress }: SideSheetBackProps) {
+  return (
+    <IconButton name="arrow_back" size="small" variant="standard" onPress={onPress} accessibilityLabel="Go back" />
+  );
+}
+
+// =============================================================================
+// SideSheetClose
+// =============================================================================
+
+function SideSheetClose({ onPress }: SideSheetCloseProps) {
+  const { dismiss } = useSideSheet();
+
+  const handlePress = React.useCallback(() => {
+    if (onPress) {
+      onPress();
+    } else {
+      dismiss();
+    }
+  }, [onPress, dismiss]);
+
+  return (
+    <IconButton
+      name="close"
+      size="small"
+      variant="standard"
+      onPress={handlePress}
+      accessibilityLabel="Close side sheet"
+    />
+  );
+}
+
+// =============================================================================
+// SideSheetContent
+// =============================================================================
+
+function SideSheetContent({ style, children }: SideSheetContentProps) {
+  return (
+    <ScrollView
+      style={[sheetStyles.scrollContent, style]}
+      contentContainerStyle={sheetStyles.scrollContentContainer}
+      showsVerticalScrollIndicator
+      bounces={false}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+// =============================================================================
+// SideSheetActions
+// =============================================================================
+
+function SideSheetActions({ showDivider = false, children }: SideSheetActionsProps) {
+  return (
+    <>
+      {showDivider && <Divider />}
+      <View style={sheetStyles.actionsContainer}>{children}</View>
+    </>
   );
 }
 
@@ -327,6 +447,29 @@ const sheetStyles = StyleSheet.create((theme, rt) => ({
 // =============================================================================
 
 SideSheet.displayName = 'SideSheet';
+SideSheetHeader.displayName = SIDE_SHEET_HEADER;
+SideSheetHeadline.displayName = SIDE_SHEET_HEADLINE;
+SideSheetBack.displayName = SIDE_SHEET_BACK;
+SideSheetClose.displayName = SIDE_SHEET_CLOSE;
+SideSheetContent.displayName = SIDE_SHEET_CONTENT;
+SideSheetActions.displayName = SIDE_SHEET_ACTIONS;
 
-export type { SideSheetProps, SideSheetVariant };
-export { SideSheet };
+export type {
+  SideSheetActionsProps,
+  SideSheetBackProps,
+  SideSheetCloseProps,
+  SideSheetContentProps,
+  SideSheetHeaderProps,
+  SideSheetHeadlineProps,
+  SideSheetProps,
+  SideSheetVariant,
+};
+export {
+  SideSheet,
+  SideSheetActions,
+  SideSheetBack,
+  SideSheetClose,
+  SideSheetContent,
+  SideSheetHeader,
+  SideSheetHeadline,
+};

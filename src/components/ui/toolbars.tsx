@@ -15,23 +15,17 @@ import { getDisplayName } from '../../utilities';
 // Types
 // =============================================================================
 
+type ToolbarVariant = 'docked' | 'floating';
 type ToolbarColorStyle = 'standard' | 'vibrant';
+type ToolbarLayout = 'horizontal' | 'vertical';
 
-type DockedToolbarProps = {
+type ToolbarProps = {
+  /** Toolbar variant. */
+  variant?: ToolbarVariant;
   /** Color style for the toolbar. */
   colorStyle?: ToolbarColorStyle;
-  /** Style applied to the outer container. */
-  style?: StyleProp<ViewStyle>;
-  children?: React.ReactNode;
-};
-
-type FloatingToolbarLayout = 'horizontal' | 'vertical';
-
-type FloatingToolbarProps = {
-  /** Color style for the toolbar. */
-  colorStyle?: ToolbarColorStyle;
-  /** Layout direction — horizontal (default) or vertical. */
-  layout?: FloatingToolbarLayout;
+  /** Layout direction — horizontal (default) or vertical. Only applies to floating variant. */
+  layout?: ToolbarLayout;
   /** Style applied to the outer container. */
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
@@ -74,28 +68,21 @@ const FLOATING_FAB_BETWEEN_SPACE = 8;
 const FAB_DISPLAY_NAME = 'FAB';
 
 // =============================================================================
-// DockedToolbar
+// Toolbar
 // =============================================================================
 
-function DockedToolbar({ colorStyle = 'standard', style, children }: DockedToolbarProps) {
-  styles.useVariants({ colorStyle });
+function Toolbar({
+  variant = 'docked',
+  colorStyle = 'standard',
+  layout = 'horizontal',
+  style,
+  children,
+}: ToolbarProps) {
+  styles.useVariants({ variant, colorStyle, layout });
 
-  return (
-    <View style={[styles.dockedContainer, style]} accessibilityRole="toolbar">
-      {children}
-    </View>
-  );
-}
-
-// =============================================================================
-// FloatingToolbar
-// =============================================================================
-
-function FloatingToolbar({ colorStyle = 'standard', layout = 'horizontal', style, children }: FloatingToolbarProps) {
-  styles.useVariants({ colorStyle, layout });
-
-  // Extract FAB child (if any) — render it adjacent to the toolbar per M3 spec
+  // Extract FAB child for floating variant — must be before any early return (rules of hooks)
   const { fabEl, toolbarChildren } = React.useMemo(() => {
+    if (variant === 'docked') return { fabEl: null, toolbarChildren: [] };
     let fab: React.ReactNode = null;
     const rest: React.ReactNode[] = [];
     React.Children.forEach(children, (child) => {
@@ -107,10 +94,18 @@ function FloatingToolbar({ colorStyle = 'standard', layout = 'horizontal', style
       }
     });
     return { fabEl: fab, toolbarChildren: rest };
-  }, [children]);
+  }, [children, variant]);
+
+  if (variant === 'docked') {
+    return (
+      <View style={[styles.container, style]} accessibilityRole="toolbar">
+        {children}
+      </View>
+    );
+  }
 
   const toolbar = (
-    <View style={[styles.floatingContainer, style]} accessibilityRole="toolbar">
+    <View style={[styles.container, style]} accessibilityRole="toolbar">
       {toolbarChildren}
     </View>
   );
@@ -133,17 +128,27 @@ function FloatingToolbar({ colorStyle = 'standard', layout = 'horizontal', style
 // =============================================================================
 
 const styles = StyleSheet.create((theme) => ({
-  // --- Docked toolbar ---
-  dockedContainer: {
-    flexDirection: 'row',
+  container: {
     alignItems: 'center',
-    justifyContent: 'space-evenly',
-    height: DOCKED_HEIGHT,
-    paddingStart: DOCKED_LEADING_SPACE,
-    paddingEnd: DOCKED_TRAILING_SPACE,
-    gap: DOCKED_MIN_SPACING,
 
     variants: {
+      variant: {
+        docked: {
+          flexDirection: 'row',
+          justifyContent: 'space-evenly',
+          height: DOCKED_HEIGHT,
+          paddingStart: DOCKED_LEADING_SPACE,
+          paddingEnd: DOCKED_TRAILING_SPACE,
+          gap: DOCKED_MIN_SPACING,
+        },
+        floating: {
+          justifyContent: 'center',
+          alignSelf: 'center',
+          borderRadius: theme.shape.full,
+          gap: FLOATING_BETWEEN_SPACE,
+          ...theme.elevation[2],
+        },
+      },
       colorStyle: {
         standard: {
           backgroundColor: theme.scheme.surfaceContainerHigh,
@@ -152,7 +157,33 @@ const styles = StyleSheet.create((theme) => ({
           backgroundColor: theme.scheme.primaryContainer,
         },
       },
+      layout: {
+        horizontal: {},
+        vertical: {},
+      },
     },
+    compoundVariants: [
+      {
+        variant: 'floating',
+        layout: 'horizontal',
+        styles: {
+          flexDirection: 'row',
+          height: FLOATING_HORIZONTAL_HEIGHT,
+          paddingStart: FLOATING_LEADING_SPACE,
+          paddingEnd: FLOATING_TRAILING_SPACE,
+        },
+      },
+      {
+        variant: 'floating',
+        layout: 'vertical',
+        styles: {
+          flexDirection: 'column',
+          width: FLOATING_VERTICAL_WIDTH,
+          paddingTop: FLOATING_LEADING_SPACE,
+          paddingBottom: FLOATING_TRAILING_SPACE,
+        },
+      },
+    ],
   },
 
   // --- Floating toolbar + FAB wrapper ---
@@ -168,49 +199,13 @@ const styles = StyleSheet.create((theme) => ({
     alignSelf: 'center',
     gap: FLOATING_FAB_BETWEEN_SPACE,
   },
-
-  // --- Floating toolbar ---
-  floatingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    borderRadius: theme.shape.full,
-    gap: FLOATING_BETWEEN_SPACE,
-    ...theme.elevation[2],
-
-    variants: {
-      colorStyle: {
-        standard: {
-          backgroundColor: theme.scheme.surfaceContainerHigh,
-        },
-        vibrant: {
-          backgroundColor: theme.scheme.primaryContainer,
-        },
-      },
-      layout: {
-        horizontal: {
-          flexDirection: 'row',
-          height: FLOATING_HORIZONTAL_HEIGHT,
-          paddingStart: FLOATING_LEADING_SPACE,
-          paddingEnd: FLOATING_TRAILING_SPACE,
-        },
-        vertical: {
-          flexDirection: 'column',
-          width: FLOATING_VERTICAL_WIDTH,
-          paddingTop: FLOATING_LEADING_SPACE,
-          paddingBottom: FLOATING_TRAILING_SPACE,
-        },
-      },
-    },
-  },
 }));
 
 // =============================================================================
 // Exports
 // =============================================================================
 
-DockedToolbar.displayName = 'DockedToolbar';
-FloatingToolbar.displayName = 'FloatingToolbar';
+Toolbar.displayName = 'Toolbar';
 
-export type { DockedToolbarProps, FloatingToolbarLayout, FloatingToolbarProps, ToolbarColorStyle };
-export { DockedToolbar, FloatingToolbar };
+export type { ToolbarColorStyle, ToolbarLayout, ToolbarProps, ToolbarVariant };
+export { Toolbar };

@@ -1,6 +1,6 @@
 import React from 'react';
 import { IconButton } from 'react-native-material-design/ui/icon-button';
-import { DockedToolbar, FloatingToolbar } from 'react-native-material-design/ui/toolbars';
+import { Toolbar } from 'react-native-material-design/ui/toolbars';
 
 import { DemoPage } from '../../components/demo/demo-page';
 import type { ConfigSchema } from '../../components/demo/types';
@@ -41,12 +41,10 @@ export default function ToolbarsScreen() {
       preview={(v) => {
         const icons = TOOLBAR_ICONS.map((name) => <IconButton key={name} name={name} variant="standard" />);
 
-        return v.type === 'docked' ? (
-          <DockedToolbar colorStyle={v.colorStyle}>{icons}</DockedToolbar>
-        ) : (
-          <FloatingToolbar colorStyle={v.colorStyle} layout={v.layout}>
+        return (
+          <Toolbar variant={v.type} colorStyle={v.colorStyle} layout={v.layout}>
             {icons}
-          </FloatingToolbar>
+          </Toolbar>
         );
       }}
     />

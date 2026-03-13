@@ -1,8 +1,15 @@
 import React from 'react';
 import { View } from 'react-native';
+import { Button, ButtonLabel } from 'react-native-material-design/ui/button';
 import { IconButton } from 'react-native-material-design/ui/icon-button';
 import { Text } from 'react-native-material-design/ui/text';
-import { PlainTooltip, RichTooltip } from 'react-native-material-design/ui/tooltips';
+import {
+  Tooltip,
+  TooltipActions,
+  TooltipContent,
+  TooltipSubhead,
+  TooltipTrigger,
+} from 'react-native-material-design/ui/tooltips';
 import { StyleSheet } from 'react-native-unistyles';
 
 import { DemoPage } from '../../components/demo/demo-page';
@@ -12,15 +19,14 @@ import { useConfig } from '../../components/demo/use-config';
 const noop = () => {};
 
 const schema = {
-  type: {
+  variant: {
     type: 'select',
-    label: 'Type',
+    label: 'Variant',
     options: ['plain', 'rich'],
     default: 'plain',
   },
-  message: { type: 'text', label: 'Message', default: 'Tooltip message' },
+  content: { type: 'text', label: 'Content', default: 'Tooltip message' },
   subhead: { type: 'text', label: 'Subhead', default: 'Subhead' },
-  supporting: { type: 'text', label: 'Supporting text', default: 'Supporting text here' },
   actions: {
     type: 'select',
     label: 'Actions',
@@ -33,8 +39,7 @@ export default function TooltipsScreen() {
   const config = useConfig(schema);
   const v = config.values;
 
-  const primaryAction = v.actions !== 'none' ? { label: 'Learn more', onPress: noop } : undefined;
-  const secondaryAction = v.actions === 'both' ? { label: 'Dismiss', onPress: noop } : undefined;
+  const isRich = v.variant === 'rich';
 
   return (
     <DemoPage
@@ -47,20 +52,25 @@ export default function TooltipsScreen() {
           <Text variant="body" size="small" style={styles.hint}>
             Long press the icon
           </Text>
-          {v.type === 'plain' ? (
-            <PlainTooltip message={v.message}>
-              <IconButton name="favorite" variant="outlined" />
-            </PlainTooltip>
-          ) : (
-            <RichTooltip
-              subhead={v.subhead || undefined}
-              supportingText={v.supporting}
-              primaryAction={primaryAction}
-              secondaryAction={secondaryAction}
-            >
-              <IconButton name="info" variant="outlined" />
-            </RichTooltip>
-          )}
+          <Tooltip variant={v.variant}>
+            <TooltipTrigger>
+              <IconButton name={isRich ? 'info' : 'favorite'} variant="outlined" />
+            </TooltipTrigger>
+            {isRich && v.subhead ? <TooltipSubhead>{v.subhead}</TooltipSubhead> : null}
+            <TooltipContent>{v.content}</TooltipContent>
+            {isRich && v.actions !== 'none' && (
+              <TooltipActions>
+                {v.actions === 'both' && (
+                  <Button variant="text" size="small" onPress={noop}>
+                    <ButtonLabel>Dismiss</ButtonLabel>
+                  </Button>
+                )}
+                <Button variant="text" size="small" onPress={noop}>
+                  <ButtonLabel>Learn more</ButtonLabel>
+                </Button>
+              </TooltipActions>
+            )}
+          </Tooltip>
         </View>
       )}
     />
