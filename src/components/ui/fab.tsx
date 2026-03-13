@@ -4,7 +4,7 @@
 /// Guidelines: https://m3.material.io/components/floating-action-button/guidelines
 /// Accessibility: https://m3.material.io/components/floating-action-button/accessibility
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Pressable as RNPressable,
   type PressableProps as RNPressableProps,
@@ -16,7 +16,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import type { Scheme } from '@/theme/scheme';
 
 import { useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
@@ -59,6 +59,14 @@ function getFABPressedShapeToken(size: FABSize): ShapeToken {
 // Props
 // =============================================================================
 
+type FABCtx = {
+  size: FABSize;
+  colorStyle: FABColorStyle;
+  disabled: boolean;
+};
+
+const [FABProvider, useFAB] = createComponentContext<FABCtx>('FAB');
+
 type FABProps = Omit<RNPressableProps, 'style' | 'children'> & {
   children: React.ReactNode;
   /** @default 'medium' */
@@ -69,21 +77,8 @@ type FABProps = Omit<RNPressableProps, 'style' | 'children'> & {
   containerStyle?: StyleProp<ViewStyle>;
 };
 
-type FABIconProps = IconProps & {
-  __internal__fabSize?: FABSize;
-  __internal__fabColorStyle?: FABColorStyle;
-  __internal__fabDisabled?: boolean;
-};
-
-type FABLabelProps = TextProps & {
-  __internal__fabSize?: FABSize;
-  __internal__fabColorStyle?: FABColorStyle;
-  __internal__fabDisabled?: boolean;
-};
-
-const isFABIcon = childGuard<FABIconProps>('FABIcon');
-const isFABLabel = childGuard<FABLabelProps>('FABLabel');
-const FAB_CHILDREN = ['FABIcon', 'FABLabel'];
+type FABIconProps = IconProps;
+type FABLabelProps = TextProps;
 
 // =============================================================================
 // FAB
@@ -98,8 +93,13 @@ function FAB({
   disabled = false,
   ...props
 }: FABProps) {
-  const childArray = React.Children.toArray(children);
-  const hasLabel = childArray.some((child) => React.isValidElement(child) && isFABLabel(child));
+  const hasLabel = React.useMemo(() => {
+    let found = false;
+    React.Children.forEach(children, (child) => {
+      if (React.isValidElement(child) && child.type === FABLabel) found = true;
+    });
+    return found;
+  }, [children]);
   const layout: FABLayout = hasLabel ? 'extended' : 'standard';
 
   styles.useVariants({ size, colorStyle, disabled, layout });
@@ -108,6 +108,8 @@ function FAB({
 
   const restShape = getFABRestShapeToken(size);
   const pressedShape = getFABPressedShapeToken(size);
+
+  const ctx = useMemo<FABCtx>(() => ({ size, colorStyle, disabled }), [size, colorStyle, disabled]);
 
   return (
     <RNPressable
@@ -125,21 +127,7 @@ function FAB({
         style={[styles.container, containerStyle]}
       >
         <StateLayer progress={progress} color={FAB_STATE_LAYER_COLOR[colorStyle]} disabled={disabled} />
-        {React.Children.map(children, (child) => {
-          if (!React.isValidElement(child)) return child;
-
-          const internal = {
-            __internal__fabSize: size,
-            __internal__fabColorStyle: colorStyle,
-            __internal__fabDisabled: disabled,
-          };
-
-          if (isFABIcon(child)) return React.cloneElement(child, internal);
-          if (isFABLabel(child)) return React.cloneElement(child, internal);
-
-          warnUnexpectedChild('FAB', child, FAB_CHILDREN);
-          return child;
-        })}
+        <FABProvider value={ctx}>{children}</FABProvider>
       </ShapeContainer>
     </RNPressable>
   );
@@ -149,21 +137,10 @@ function FAB({
 // FABIcon
 // =============================================================================
 
-function FABIcon({
-  __internal__fabSize = 'medium',
-  __internal__fabColorStyle = 'primaryContainer',
-  __internal__fabDisabled = false,
-  style,
-  ...props
-}: FABIconProps) {
-  styles.useVariants({
-    size: __internal__fabSize,
-    colorStyle: __internal__fabColorStyle,
-    disabled: __internal__fabDisabled,
-  });
-
-  const iconSize = FAB_ICON_SIZE[__internal__fabSize];
-
+function FABIcon({ style, ...props }: FABIconProps) {
+  const { size, colorStyle, disabled } = useFAB();
+  styles.useVariants({ size, colorStyle, disabled });
+  const iconSize = FAB_ICON_SIZE[size];
   return <Icon size={iconSize} variant="outlined" style={[styles.icon, style]} {...props} />;
 }
 
@@ -171,19 +148,9 @@ function FABIcon({
 // FABLabel
 // =============================================================================
 
-function FABLabel({
-  __internal__fabSize = 'medium',
-  __internal__fabColorStyle = 'primaryContainer',
-  __internal__fabDisabled = false,
-  style,
-  ...props
-}: FABLabelProps) {
-  styles.useVariants({
-    size: __internal__fabSize,
-    colorStyle: __internal__fabColorStyle,
-    disabled: __internal__fabDisabled,
-  });
-
+function FABLabel({ style, ...props }: FABLabelProps) {
+  const { size, colorStyle, disabled } = useFAB();
+  styles.useVariants({ size, colorStyle, disabled });
   return <Text style={[styles.label, style]} variant="title" size="medium" {...props} />;
 }
 

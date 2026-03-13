@@ -20,7 +20,7 @@ import { StyleSheet, UnistylesRuntime, withUnistyles } from 'react-native-unisty
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { Icon } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -56,20 +56,25 @@ type SwitchToggleProps = {
   trackStyle?: StyleProp<ViewStyle>;
   /** Style applied to the handle (thumb). */
   handleStyle?: StyleProp<ViewStyle>;
-  /** @internal Injected by parent Switch. */
-  __internal__switchSelected?: boolean;
-  __internal__switchIconMode?: SwitchIconMode;
-  __internal__switchDisabled?: boolean;
-  __internal__switchPressProgress?: SharedValue<number>;
-  __internal__switchSelectProgress?: SharedValue<number>;
-  __internal__switchHoverProgress?: SharedValue<number>;
-  __internal__switchFocusProgress?: SharedValue<number>;
 };
 
-type SwitchLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  /** @internal Injected by parent Switch. */
-  __internal__switchDisabled?: boolean;
+type SwitchLabelProps = Omit<TextProps, 'variant' | 'size'>;
+
+// =============================================================================
+// Context
+// =============================================================================
+
+type SwitchContextValue = {
+  selected: boolean;
+  iconMode: SwitchIconMode;
+  disabled: boolean;
+  pressProgress: SharedValue<number>;
+  selectProgress: SharedValue<number>;
+  hoverProgress: SharedValue<number>;
+  focusProgress: SharedValue<number>;
 };
+
+const [SwitchProvider, useSwitch] = createComponentContext<SwitchContextValue>('Switch');
 
 // =============================================================================
 // Constants (M3 Specs)
@@ -92,10 +97,6 @@ const ICON_SIZE = 16;
 // At unselected: handle center = TRACK_HEIGHT/2 (centered vertically = centered at left)
 // At selected: handle center = TRACK_WIDTH - TRACK_HEIGHT/2
 const HANDLE_TRAVEL = TRACK_WIDTH - TRACK_HEIGHT; // 20dp
-
-const isSwitchToggle = childGuard<SwitchToggleProps>('SwitchToggle');
-const isSwitchLabel = childGuard<SwitchLabelProps>('SwitchLabel');
-const SWITCH_CHILDREN = ['SwitchToggle', 'SwitchLabel'];
 
 // =============================================================================
 // Switch (parent — touch target + state management)
@@ -131,6 +132,19 @@ function Switch({
     setSelected((prev) => !prev);
   }, [disabled, setSelected]);
 
+  const ctx = React.useMemo<SwitchContextValue>(
+    () => ({
+      selected,
+      iconMode: icon,
+      disabled,
+      pressProgress: progress.press,
+      selectProgress,
+      hoverProgress: progress.hover,
+      focusProgress: progress.focus,
+    }),
+    [selected, icon, disabled, progress.press, selectProgress, progress.hover, progress.focus],
+  );
+
   return (
     <RNPressable
       style={[styles.root, style]}
@@ -144,25 +158,7 @@ function Switch({
       }}
       accessibilityLabel={accessibilityLabel}
     >
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return child;
-
-        const internal = {
-          __internal__switchSelected: selected,
-          __internal__switchIconMode: icon,
-          __internal__switchDisabled: disabled,
-          __internal__switchPressProgress: progress.press,
-          __internal__switchSelectProgress: selectProgress,
-          __internal__switchHoverProgress: progress.hover,
-          __internal__switchFocusProgress: progress.focus,
-        };
-
-        if (isSwitchToggle(child)) return React.cloneElement(child, internal);
-        if (isSwitchLabel(child)) return React.cloneElement(child, internal);
-
-        warnUnexpectedChild('Switch', child, SWITCH_CHILDREN);
-        return child;
-      })}
+      <SwitchProvider value={ctx}>{children}</SwitchProvider>
     </RNPressable>
   );
 }
@@ -171,21 +167,8 @@ function Switch({
 // SwitchToggle (visual — track, handle, state layer, icon)
 // =============================================================================
 
-function SwitchToggle({
-  style,
-  trackStyle,
-  handleStyle,
-  __internal__switchSelected = false,
-  __internal__switchIconMode = 'none',
-  __internal__switchDisabled = false,
-  __internal__switchPressProgress,
-  __internal__switchSelectProgress,
-  __internal__switchHoverProgress,
-  __internal__switchFocusProgress,
-}: SwitchToggleProps) {
-  const selected = __internal__switchSelected;
-  const iconMode = __internal__switchIconMode;
-  const disabled = __internal__switchDisabled;
+function SwitchToggle({ style, trackStyle, handleStyle }: SwitchToggleProps) {
+  const { selected, iconMode, disabled, pressProgress, selectProgress, hoverProgress, focusProgress } = useSwitch();
 
   const showIcon = iconMode === 'both' || (iconMode === 'selected' && selected);
   const hasIcon = iconMode !== 'none';
@@ -193,16 +176,6 @@ function SwitchToggle({
   styles.useVariants({ disabled });
 
   const animatedTheme = useAnimatedTheme();
-
-  // Fallback shared values for standalone usage
-  const fallbackPress = useSharedValue(0);
-  const fallbackSelect = useSharedValue(selected ? 1 : 0);
-  const fallbackHover = useSharedValue(0);
-  const fallbackFocus = useSharedValue(0);
-  const pressProgress = __internal__switchPressProgress ?? fallbackPress;
-  const selectProgress = __internal__switchSelectProgress ?? fallbackSelect;
-  const hoverProgress = __internal__switchHoverProgress ?? fallbackHover;
-  const focusProgress = __internal__switchFocusProgress ?? fallbackFocus;
 
   // Handle size animation:
   // Unselected without icon: 16, with icon: 24
@@ -393,8 +366,9 @@ function SwitchToggle({
 // SwitchLabel (adjacent text)
 // =============================================================================
 
-function SwitchLabel({ __internal__switchDisabled = false, style, ...props }: SwitchLabelProps) {
-  styles.useVariants({ disabled: __internal__switchDisabled });
+function SwitchLabel({ style, ...props }: SwitchLabelProps) {
+  const { disabled } = useSwitch();
+  styles.useVariants({ disabled });
 
   return <Text variant="body" size="large" style={[styles.label, style]} {...props} />;
 }

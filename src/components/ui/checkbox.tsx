@@ -19,7 +19,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { Text, type TextProps } from './text';
 
 // =============================================================================
@@ -50,18 +50,23 @@ type CheckboxToggleProps = {
   style?: StyleProp<ViewStyle>;
   /** Style applied to the checkbox square container. */
   containerStyle?: StyleProp<ViewStyle>;
-  /** @internal Injected by parent Checkbox. */
-  __internal__checkboxValue?: CheckboxValue;
-  __internal__checkboxError?: boolean;
-  __internal__checkboxDisabled?: boolean;
-  __internal__checkboxPressProgress?: SharedValue<number>;
-  __internal__checkboxCheckProgress?: SharedValue<number>;
 };
 
-type CheckboxLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  /** @internal Injected by parent Checkbox. */
-  __internal__checkboxDisabled?: boolean;
+type CheckboxLabelProps = Omit<TextProps, 'variant' | 'size'>;
+
+// =============================================================================
+// Context
+// =============================================================================
+
+type CheckboxContextValue = {
+  value: CheckboxValue;
+  error: boolean;
+  disabled: boolean;
+  pressProgress: SharedValue<number>;
+  checkProgress: SharedValue<number>;
 };
+
+const [CheckboxProvider, useCheckbox] = createComponentContext<CheckboxContextValue>('Checkbox');
 
 // =============================================================================
 // Constants (M3 Specs)
@@ -81,10 +86,6 @@ const CHECK_STROKE = 2;
 // Indeterminate dash geometry
 const DASH_WIDTH = 12;
 const DASH_HEIGHT = 2;
-
-const isCheckboxToggle = childGuard<CheckboxToggleProps>('CheckboxToggle');
-const isCheckboxLabel = childGuard<CheckboxLabelProps>('CheckboxLabel');
-const CHECKBOX_CHILDREN = ['CheckboxToggle', 'CheckboxLabel'];
 
 // =============================================================================
 // Checkbox (parent — touch target + state management)
@@ -122,6 +123,17 @@ function Checkbox({
     setValue(isFilled ? 'unselected' : 'selected');
   }, [disabled, isFilled, setValue]);
 
+  const ctx = React.useMemo<CheckboxContextValue>(
+    () => ({
+      value,
+      error,
+      disabled,
+      pressProgress: progress.press,
+      checkProgress,
+    }),
+    [value, error, disabled, progress.press, checkProgress],
+  );
+
   return (
     <RNPressable
       style={[styles.root, style]}
@@ -135,23 +147,7 @@ function Checkbox({
       }}
       accessibilityLabel={accessibilityLabel}
     >
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return child;
-
-        const internal = {
-          __internal__checkboxValue: value,
-          __internal__checkboxError: error,
-          __internal__checkboxDisabled: disabled,
-          __internal__checkboxPressProgress: progress.press,
-          __internal__checkboxCheckProgress: checkProgress,
-        };
-
-        if (isCheckboxToggle(child)) return React.cloneElement(child, internal);
-        if (isCheckboxLabel(child)) return React.cloneElement(child, internal);
-
-        warnUnexpectedChild('Checkbox', child, CHECKBOX_CHILDREN);
-        return child;
-      })}
+      <CheckboxProvider value={ctx}>{children}</CheckboxProvider>
     </RNPressable>
   );
 }
@@ -160,18 +156,8 @@ function Checkbox({
 // CheckboxToggle (visual box — container, state layer, checkmark, dash)
 // =============================================================================
 
-function CheckboxToggle({
-  style,
-  containerStyle,
-  __internal__checkboxValue = 'unselected',
-  __internal__checkboxError = false,
-  __internal__checkboxDisabled = false,
-  __internal__checkboxPressProgress,
-  __internal__checkboxCheckProgress,
-}: CheckboxToggleProps) {
-  const value = __internal__checkboxValue;
-  const error = __internal__checkboxError;
-  const disabled = __internal__checkboxDisabled;
+function CheckboxToggle({ style, containerStyle }: CheckboxToggleProps) {
+  const { value, error, disabled, pressProgress, checkProgress } = useCheckbox();
 
   const isFilled = value === 'selected' || value === 'indeterminate';
   const isSelected = value === 'selected';
@@ -179,12 +165,6 @@ function CheckboxToggle({
   styles.useVariants({ filled: isFilled, error, disabled });
 
   const animatedTheme = useAnimatedTheme();
-
-  // Fallback shared values for standalone usage (without parent Checkbox)
-  const fallbackPress = useSharedValue(0);
-  const fallbackCheck = useSharedValue(isFilled ? 1 : 0);
-  const pressProgress = __internal__checkboxPressProgress ?? fallbackPress;
-  const checkProgress = __internal__checkboxCheckProgress ?? fallbackCheck;
 
   // State layer opacity (press feedback)
   const animatedStateStyle = useAnimatedStyle(() => ({
@@ -260,8 +240,9 @@ function CheckboxToggle({
 // CheckboxLabel (adjacent text)
 // =============================================================================
 
-function CheckboxLabel({ __internal__checkboxDisabled = false, style, ...props }: CheckboxLabelProps) {
-  styles.useVariants({ disabled: __internal__checkboxDisabled });
+function CheckboxLabel({ style, ...props }: CheckboxLabelProps) {
+  const { disabled } = useCheckbox();
+  styles.useVariants({ disabled });
 
   return <Text variant="body" size="large" style={[styles.label, style]} {...props} />;
 }

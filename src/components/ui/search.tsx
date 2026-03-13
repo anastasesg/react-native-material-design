@@ -11,7 +11,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { getDisplayName } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Icon, type MaterialSymbol } from './icon';
 import { IconButton } from './icon-button';
@@ -47,12 +47,6 @@ type SearchLeadingIconProps = {
   name: MaterialSymbol;
   /** Makes the icon a pressable IconButton. */
   onPress?: () => void;
-  /** @internal */
-  __internal__expanded?: boolean;
-  /** @internal */
-  __internal__disabled?: boolean;
-  /** @internal */
-  __internal__onCollapse?: () => void;
 };
 
 type SearchInputProps = {
@@ -66,10 +60,6 @@ type SearchInputProps = {
   onSubmitEditing?: () => void;
   /** Auto-focus when expanded. */
   autoFocus?: boolean;
-  /** @internal */
-  __internal__expanded?: boolean;
-  /** @internal */
-  __internal__disabled?: boolean;
 };
 
 type SearchTrailingIconProps = {
@@ -77,8 +67,6 @@ type SearchTrailingIconProps = {
   name: MaterialSymbol;
   /** Press handler. */
   onPress?: () => void;
-  /** @internal */
-  __internal__disabled?: boolean;
 };
 
 type SearchContentProps = {
@@ -86,8 +74,6 @@ type SearchContentProps = {
   children: React.ReactNode;
   /** Style for the content container. */
   style?: StyleProp<ViewStyle>;
-  /** @internal */
-  __internal__expanded?: boolean;
 };
 
 // =============================================================================
@@ -119,6 +105,10 @@ const SEARCH_LEADING_ICON = 'SearchLeadingIcon';
 const SEARCH_INPUT = 'SearchInput';
 const SEARCH_TRAILING_ICON = 'SearchTrailingIcon';
 const SEARCH_CONTENT = 'SearchContent';
+
+// Search → sub-component context
+type SearchContextValue = { expanded: boolean; disabled: boolean; onCollapse: () => void };
+const [SearchProvider, useSearch] = createComponentContext<SearchContextValue>('Search');
 
 // =============================================================================
 // Search (root)
@@ -220,78 +210,30 @@ function Search({
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const name = getDisplayName(child);
-
-    switch (name) {
-      case SEARCH_LEADING_ICON:
-        leadingIconSlot = child;
-        break;
-      case SEARCH_INPUT:
-        inputSlot = child;
-        break;
-      case SEARCH_TRAILING_ICON:
-        trailingIconSlots.push(child);
-        break;
-      case SEARCH_CONTENT:
-        contentSlot = child;
-        break;
-    }
+    if (child.type === SearchLeadingIcon) leadingIconSlot = child;
+    else if (child.type === SearchInput) inputSlot = child;
+    else if (child.type === SearchTrailingIcon) trailingIconSlots.push(child);
+    else if (child.type === SearchContent) contentSlot = child;
   });
 
   const hasTrailingActions = trailingIconSlots.length > 0;
   const hasLeadingIcon = leadingIconSlot != null;
 
-  // Trailing icons are identical for both collapsed and expanded
-  const clonedTrailingIcons = trailingIconSlots.map((icon, index) =>
-    React.cloneElement(icon, {
-      __internal__disabled: disabled,
-      key: index,
-    } as any));
+  const collapsedCtx = React.useMemo(
+    () => ({ expanded: false as const, disabled, onCollapse: handleCollapse }),
+    [disabled, handleCollapse],
+  );
+  const expandedCtx = React.useMemo(
+    () => ({ expanded: true as const, disabled, onCollapse: handleCollapse }),
+    [disabled, handleCollapse],
+  );
 
-  // Clone children with __internal__ props for collapsed bar
-  const clonedLeadingIcon = leadingIconSlot
-    ? React.cloneElement(leadingIconSlot, {
-        __internal__expanded: false,
-        __internal__disabled: disabled,
-        __internal__onCollapse: handleCollapse,
-      } as any)
-    : null;
-
-  const clonedInput = inputSlot
-    ? React.cloneElement(inputSlot, {
-        __internal__expanded: false,
-        __internal__disabled: disabled,
-      } as any)
-    : null;
-
-  // Clone expanded variants only when the overlay is mounted
-  // Always show a back arrow when expanded — even if no SearchLeadingIcon was provided
-  const expandedLeadingIcon = mounted ? (
-    leadingIconSlot ? (
-      React.cloneElement(leadingIconSlot, {
-        __internal__expanded: true,
-        __internal__disabled: disabled,
-        __internal__onCollapse: handleCollapse,
-      } as any)
-    ) : (
-      <IconButton name="arrow_back" variant="standard" size="small" onPress={handleCollapse} />
-    )
+  // Trailing icons with keys (rendered in both collapsed + expanded via context)
+  const trailingIcons = hasTrailingActions ? (
+    <View style={searchStyles.trailingContainer}>
+      {trailingIconSlots.map((icon, index) => React.cloneElement(icon, { key: index }))}
+    </View>
   ) : null;
-
-  const expandedInput =
-    mounted && inputSlot
-      ? React.cloneElement(inputSlot, {
-          __internal__expanded: true,
-          __internal__disabled: disabled,
-        } as any)
-      : null;
-
-  const expandedContent =
-    mounted && contentSlot
-      ? React.cloneElement(contentSlot, {
-          __internal__expanded: true,
-        } as any)
-      : null;
 
   // Collapsed bar - wrapped in an Animated.View for margin animation
   const bar = (
@@ -317,11 +259,11 @@ function Search({
               },
             ]}
           >
-            {clonedLeadingIcon}
-            {clonedInput}
-            {clonedTrailingIcons.length > 0 && (
-              <View style={searchStyles.trailingContainer}>{clonedTrailingIcons}</View>
-            )}
+            <SearchProvider value={collapsedCtx}>
+              {leadingIconSlot}
+              {inputSlot}
+              {trailingIcons}
+            </SearchProvider>
             <StateLayer progress={progress} color="onSurface" style={searchStyles.stateLayer} />
           </View>
         </RNPressable>
@@ -338,12 +280,17 @@ function Search({
   const expandedBarRow = (
     <Animated.View style={[searchStyles.expandedBarOuter, animatedMarginStyle, animatedBarTranslateStyle]}>
       <View style={searchStyles.expandedBar}>
-        {expandedLeadingIcon}
-        {expandedInput}
-        {clonedTrailingIcons.length > 0 && <View style={searchStyles.trailingContainer}>{clonedTrailingIcons}</View>}
+        <SearchProvider value={expandedCtx}>
+          {leadingIconSlot || <IconButton name="arrow_back" variant="standard" size="small" onPress={handleCollapse} />}
+          {inputSlot}
+          {trailingIcons}
+        </SearchProvider>
       </View>
     </Animated.View>
   );
+
+  const expandedContent =
+    mounted && contentSlot ? <SearchProvider value={expandedCtx}>{contentSlot}</SearchProvider> : null;
 
   if (layout === 'full-screen') {
     return (
@@ -439,30 +386,22 @@ function DockedOverlay({
 // SearchLeadingIcon
 // =============================================================================
 
-function SearchLeadingIcon({
-  name,
-  onPress,
-  __internal__expanded = false,
-  __internal__disabled = false,
-  __internal__onCollapse,
-}: SearchLeadingIconProps) {
+function SearchLeadingIcon({ name, onPress }: SearchLeadingIconProps) {
+  const { expanded, disabled, onCollapse } = useSearch();
+
   // When expanded, always show back arrow that collapses
-  if (__internal__expanded) {
-    return <IconButton name="arrow_back" variant="standard" size="small" onPress={__internal__onCollapse} />;
+  if (expanded) {
+    return <IconButton name="arrow_back" variant="standard" size="small" onPress={onCollapse} />;
   }
 
   // When collapsed, show the consumer's icon
   if (onPress) {
-    return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={__internal__disabled} />;
+    return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={disabled} />;
   }
 
   return (
     <View style={searchStyles.leadingIconWrapper}>
-      <Icon
-        name={name}
-        size={ICON_SIZE}
-        style={[searchStyles.leadingIcon, __internal__disabled && searchStyles.disabledContent]}
-      />
+      <Icon name={name} size={ICON_SIZE} style={[searchStyles.leadingIcon, disabled && searchStyles.disabledContent]} />
     </View>
   );
 }
@@ -478,30 +417,29 @@ function SearchInput({
   onChangeText,
   onSubmitEditing,
   autoFocus = true,
-  __internal__expanded = false,
-  __internal__disabled = false,
 }: SearchInputProps) {
+  const { expanded, disabled } = useSearch();
   const inputRef = React.useRef<React.ElementRef<typeof TextInput>>(null);
 
   // Auto-focus when expanded
   React.useEffect(() => {
-    if (__internal__expanded && autoFocus) {
+    if (expanded && autoFocus) {
       const timer = setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [__internal__expanded, autoFocus]);
+  }, [expanded, autoFocus]);
 
   // When collapsed, render as placeholder text
-  if (!__internal__expanded) {
+  if (!expanded) {
     return (
       <View style={searchStyles.inputContainer}>
         <Text
           variant="body"
           size="large"
-          style={[searchStyles.placeholderText, __internal__disabled && searchStyles.disabledContent]}
+          style={[searchStyles.placeholderText, disabled && searchStyles.disabledContent]}
           numberOfLines={1}
         >
           {value || placeholder}
@@ -521,7 +459,7 @@ function SearchInput({
         placeholder={placeholder}
         placeholderTextColor={searchStyles.placeholderText.color as string}
         style={searchStyles.textInput}
-        editable={!__internal__disabled}
+        editable={!disabled}
         returnKeyType="search"
         autoCapitalize="none"
         autoCorrect={false}
@@ -535,8 +473,9 @@ SearchInput.displayName = SEARCH_INPUT;
 // SearchTrailingIcon
 // =============================================================================
 
-function SearchTrailingIcon({ name, onPress, __internal__disabled = false }: SearchTrailingIconProps) {
-  return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={__internal__disabled} />;
+function SearchTrailingIcon({ name, onPress }: SearchTrailingIconProps) {
+  const { disabled } = useSearch();
+  return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={disabled} />;
 }
 SearchTrailingIcon.displayName = SEARCH_TRAILING_ICON;
 
@@ -544,8 +483,9 @@ SearchTrailingIcon.displayName = SEARCH_TRAILING_ICON;
 // SearchContent
 // =============================================================================
 
-function SearchContent({ children, style, __internal__expanded = false }: SearchContentProps) {
-  if (!__internal__expanded) return null;
+function SearchContent({ children, style }: SearchContentProps) {
+  const { expanded } = useSearch();
+  if (!expanded) return null;
 
   return <View style={[searchStyles.content, style]}>{children}</View>;
 }

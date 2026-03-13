@@ -21,7 +21,7 @@ import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import type { TypographyStyle } from '@/theme/typography';
 
-import { getDisplayName } from '../../utilities';
+import { createComponentContext, getDisplayName } from '../../utilities';
 import { Icon, type MaterialSymbol } from './icon';
 import { IconButton } from './icon-button';
 import { Text } from './text';
@@ -88,10 +88,6 @@ type TextFieldProps = {
 type TextFieldLeadingIconProps = {
   /** Icon name. */
   name: MaterialSymbol;
-  /** @internal */
-  __internal__disabled?: boolean;
-  /** @internal */
-  __internal__error?: boolean;
 };
 
 type TextFieldInputProps = {
@@ -121,20 +117,6 @@ type TextFieldInputProps = {
   numberOfLines?: number;
   /** Style applied to the TextInput. */
   style?: StyleProp<TextStyle>;
-  /** @internal */
-  __internal__disabled?: boolean;
-  /** @internal */
-  __internal__error?: boolean;
-  /** @internal */
-  __internal__focused?: boolean;
-  /** @internal */
-  __internal__onFocus?: () => void;
-  /** @internal */
-  __internal__onBlur?: () => void;
-  /** @internal */
-  __internal__onTextChange?: (text: string) => void;
-  /** @internal */
-  __internal__inputRef?: React.RefObject<any>;
 };
 
 type TextFieldTrailingIconProps = {
@@ -142,20 +124,28 @@ type TextFieldTrailingIconProps = {
   name: MaterialSymbol;
   /** Press handler — makes icon a pressable IconButton. */
   onPress?: () => void;
-  /** @internal */
-  __internal__disabled?: boolean;
-  /** @internal */
-  __internal__error?: boolean;
 };
 
 type TextFieldSupportingTextProps = {
   /** Supporting text content. */
   children: React.ReactNode;
-  /** @internal */
-  __internal__disabled?: boolean;
-  /** @internal */
-  __internal__error?: boolean;
 };
+
+// =============================================================================
+// Context
+// =============================================================================
+
+type TextFieldContextValue = {
+  disabled: boolean;
+  error: boolean;
+  focused: boolean;
+  onFocus: () => void;
+  onBlur: () => void;
+  onTextChange: (text: string) => void;
+  inputRef: React.RefObject<any>;
+};
+
+const [TextFieldProvider, useTextField] = createComponentContext<TextFieldContextValue>('TextField');
 
 // =============================================================================
 // Constants
@@ -268,39 +258,18 @@ function TextField({
     }
   }, [hasValue, isFocused, progress]);
 
-  // Clone children with __internal__ props
-  const clonedLeadingIcon = leadingIconSlot
-    ? React.cloneElement(leadingIconSlot, {
-        __internal__disabled: disabled,
-        __internal__error: error,
-      } as any)
-    : null;
-
-  const clonedInput = inputSlot
-    ? React.cloneElement(inputSlot, {
-        __internal__disabled: disabled,
-        __internal__error: error,
-        __internal__focused: isFocused,
-        __internal__onFocus: handleFocus,
-        __internal__onBlur: handleBlur,
-        __internal__onTextChange: handleTextChange,
-        __internal__inputRef: textInputRef,
-      } as any)
-    : null;
-
-  const clonedTrailingIcons = trailingIconSlots.map((icon, index) =>
-    React.cloneElement(icon, {
-      __internal__disabled: disabled,
-      __internal__error: error,
-      key: index,
-    } as any));
-
-  const clonedSupportingText = supportingTextSlot
-    ? React.cloneElement(supportingTextSlot, {
-        __internal__disabled: disabled,
-        __internal__error: error,
-      } as any)
-    : null;
+  const ctx = React.useMemo<TextFieldContextValue>(
+    () => ({
+      disabled,
+      error,
+      focused: isFocused,
+      onFocus: handleFocus,
+      onBlur: handleBlur,
+      onTextChange: handleTextChange,
+      inputRef: textInputRef,
+    }),
+    [disabled, error, isFocused, handleFocus, handleBlur, handleTextChange],
+  );
 
   // Flatten containerStyle to extract background color for notch
   const flattenedContainerStyle = React.useMemo(() => StyleSheet.flatten(containerStyle), [containerStyle]);
@@ -395,40 +364,42 @@ function TextField({
   const paddingRight = hasTrailingIcon ? PADDING_HORIZONTAL_WITH_ICONS : PADDING_HORIZONTAL;
 
   return (
-    <View style={[styles.wrapper, style]}>
-      <Pressable
-        style={[styles.container, containerStyle]}
-        onPress={() => !disabled && textInputRef.current?.focus()}
-        disabled={disabled}
-        accessible={false}
-      >
-        {/* Border / active indicator */}
-        <Animated.View
-          style={[variant === 'filled' ? styles.underline : styles.outline, borderAnimatedStyle]}
-          pointerEvents="none"
-        />
+    <TextFieldProvider value={ctx}>
+      <View style={[styles.wrapper, style]}>
+        <Pressable
+          style={[styles.container, containerStyle]}
+          onPress={() => !disabled && textInputRef.current?.focus()}
+          disabled={disabled}
+          accessible={false}
+        >
+          {/* Border / active indicator */}
+          <Animated.View
+            style={[variant === 'filled' ? styles.underline : styles.outline, borderAnimatedStyle]}
+            pointerEvents="none"
+          />
 
-        {/* Disabled overlay for filled variant */}
-        {variant === 'filled' && disabled && <View style={styles.filledDisabledOverlay} pointerEvents="none" />}
+          {/* Disabled overlay for filled variant */}
+          {variant === 'filled' && disabled && <View style={styles.filledDisabledOverlay} pointerEvents="none" />}
 
-        {/* Content row */}
-        <View style={[styles.contentRow, { paddingLeft, paddingRight }]}>
-          {clonedLeadingIcon && <View style={styles.iconWrapper}>{clonedLeadingIcon}</View>}
-          <View style={styles.inputArea}>{clonedInput}</View>
-          {clonedTrailingIcons.length > 0 && <View style={styles.trailingContainer}>{clonedTrailingIcons}</View>}
-        </View>
+          {/* Content row */}
+          <View style={[styles.contentRow, { paddingLeft, paddingRight }]}>
+            {leadingIconSlot && <View style={styles.iconWrapper}>{leadingIconSlot}</View>}
+            <View style={styles.inputArea}>{inputSlot}</View>
+            {trailingIconSlots.length > 0 && <View style={styles.trailingContainer}>{trailingIconSlots}</View>}
+          </View>
 
-        {/* Label — absolutely positioned, animates above everything */}
-        <Animated.View style={[styles.labelContainer, labelContainerStyle]} pointerEvents="none">
-          <Animated.Text style={labelTextStyle} numberOfLines={1}>
-            {label}
-          </Animated.Text>
-        </Animated.View>
-      </Pressable>
+          {/* Label — absolutely positioned, animates above everything */}
+          <Animated.View style={[styles.labelContainer, labelContainerStyle]} pointerEvents="none">
+            <Animated.Text style={labelTextStyle} numberOfLines={1}>
+              {label}
+            </Animated.Text>
+          </Animated.View>
+        </Pressable>
 
-      {/* Supporting text */}
-      {clonedSupportingText}
-    </View>
+        {/* Supporting text */}
+        {supportingTextSlot}
+      </View>
+    </TextFieldProvider>
   );
 }
 
@@ -436,12 +407,10 @@ function TextField({
 // TextFieldLeadingIcon
 // =============================================================================
 
-function TextFieldLeadingIcon({
-  name,
-  __internal__disabled = false,
-  __internal__error: _error = false,
-}: TextFieldLeadingIconProps) {
-  return <Icon name={name} size={ICON_SIZE} style={[styles.leadingIcon, __internal__disabled && styles.disabled]} />;
+function TextFieldLeadingIcon({ name }: TextFieldLeadingIconProps) {
+  const { disabled } = useTextField();
+  styles.useVariants({ disabled });
+  return <Icon name={name} size={ICON_SIZE} style={styles.leadingIcon} />;
 }
 TextFieldLeadingIcon.displayName = TEXT_FIELD_LEADING_ICON;
 
@@ -463,39 +432,35 @@ function TextFieldInput({
   multiline,
   numberOfLines,
   style,
-  __internal__disabled = false,
-  __internal__error = false,
-  __internal__focused = false,
-  __internal__onFocus,
-  __internal__onBlur,
-  __internal__onTextChange,
-  __internal__inputRef,
 }: TextFieldInputProps) {
-  const showPrefix = prefix && (__internal__focused || (value ?? '').length > 0);
-  const showSuffix = suffix && (__internal__focused || (value ?? '').length > 0);
+  const { disabled, error, focused, onFocus, onBlur, onTextChange, inputRef } = useTextField();
+  styles.useVariants({ disabled });
+
+  const showPrefix = prefix && (focused || (value ?? '').length > 0);
+  const showSuffix = suffix && (focused || (value ?? '').length > 0);
 
   const handleChangeText = React.useCallback((text: string) => {
     onChangeText?.(text);
-    __internal__onTextChange?.(text);
-  }, [onChangeText, __internal__onTextChange]);
+    onTextChange(text);
+  }, [onChangeText, onTextChange]);
 
   return (
     <View style={styles.textInputRow}>
       {showPrefix && (
-        <Text variant="body" size="large" style={[styles.prefixSuffix, __internal__disabled && styles.disabled]}>
+        <Text variant="body" size="large" style={styles.prefixSuffix}>
           {prefix}
         </Text>
       )}
       <UniTextInput
-        ref={__internal__inputRef}
+        ref={inputRef}
         value={value}
         onChangeText={handleChangeText}
-        onFocus={__internal__onFocus}
-        onBlur={__internal__onBlur}
+        onFocus={onFocus}
+        onBlur={onBlur}
         onSubmitEditing={onSubmitEditing}
-        placeholder={__internal__focused ? placeholder : undefined}
-        style={[styles.textInput, __internal__disabled && styles.disabled, style]}
-        editable={!__internal__disabled}
+        placeholder={focused ? placeholder : undefined}
+        style={[styles.textInput, style]}
+        editable={!disabled}
         autoFocus={autoFocus}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
@@ -503,13 +468,13 @@ function TextFieldInput({
         multiline={multiline}
         numberOfLines={numberOfLines}
         uniProps={(uniTheme) => ({
-          cursorColor: __internal__error ? uniTheme.scheme.error : uniTheme.scheme.primary,
-          selectionColor: __internal__error ? uniTheme.scheme.error : uniTheme.scheme.primary,
+          cursorColor: error ? uniTheme.scheme.error : uniTheme.scheme.primary,
+          selectionColor: error ? uniTheme.scheme.error : uniTheme.scheme.primary,
           placeholderTextColor: uniTheme.scheme.onSurfaceVariant,
         })}
       />
       {showSuffix && (
-        <Text variant="body" size="large" style={[styles.prefixSuffix, __internal__disabled && styles.disabled]}>
+        <Text variant="body" size="large" style={styles.prefixSuffix}>
           {suffix}
         </Text>
       )}
@@ -522,27 +487,15 @@ TextFieldInput.displayName = TEXT_FIELD_INPUT;
 // TextFieldTrailingIcon
 // =============================================================================
 
-function TextFieldTrailingIcon({
-  name,
-  onPress,
-  __internal__disabled = false,
-  __internal__error = false,
-}: TextFieldTrailingIconProps) {
+function TextFieldTrailingIcon({ name, onPress }: TextFieldTrailingIconProps) {
+  const { disabled, error } = useTextField();
+  styles.useVariants({ disabled, error });
+
   if (onPress) {
-    return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={__internal__disabled} />;
+    return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={disabled} />;
   }
 
-  return (
-    <Icon
-      name={name}
-      size={ICON_SIZE}
-      style={[
-        styles.trailingIcon,
-        __internal__error && !__internal__disabled && styles.trailingIconError,
-        __internal__disabled && styles.disabled,
-      ]}
-    />
-  );
+  return <Icon name={name} size={ICON_SIZE} style={styles.trailingIcon} />;
 }
 TextFieldTrailingIcon.displayName = TEXT_FIELD_TRAILING_ICON;
 
@@ -550,21 +503,12 @@ TextFieldTrailingIcon.displayName = TEXT_FIELD_TRAILING_ICON;
 // TextFieldSupportingText
 // =============================================================================
 
-function TextFieldSupportingText({
-  children,
-  __internal__disabled = false,
-  __internal__error = false,
-}: TextFieldSupportingTextProps) {
+function TextFieldSupportingText({ children }: TextFieldSupportingTextProps) {
+  const { disabled, error } = useTextField();
+  styles.useVariants({ disabled, error });
+
   return (
-    <Text
-      variant="body"
-      size="small"
-      style={[
-        styles.supportingText,
-        __internal__error && !__internal__disabled && styles.supportingTextError,
-        __internal__disabled && styles.disabled,
-      ]}
-    >
+    <Text variant="body" size="small" style={styles.supportingText}>
       {children}
     </Text>
   );
@@ -689,23 +633,51 @@ const styles = StyleSheet.create((theme) => ({
     lineHeight: undefined,
     paddingVertical: 0,
     margin: 0,
+
+    variants: {
+      disabled: {
+        true: { color: theme.scheme.onSurface, opacity: theme.state.disabledContent },
+        false: {},
+      },
+    },
   },
 
   prefixSuffix: {
     color: theme.scheme.onSurfaceVariant,
+
+    variants: {
+      disabled: {
+        true: { color: theme.scheme.onSurface, opacity: theme.state.disabledContent },
+        false: {},
+      },
+    },
   },
 
   // -- Icons --
   leadingIcon: {
     color: theme.scheme.onSurfaceVariant,
+
+    variants: {
+      disabled: {
+        true: { color: theme.scheme.onSurface, opacity: theme.state.disabledContent },
+        false: {},
+      },
+    },
   },
 
   trailingIcon: {
     color: theme.scheme.onSurfaceVariant,
-  },
 
-  trailingIconError: {
-    color: theme.scheme.error,
+    variants: {
+      error: {
+        true: { color: theme.scheme.error },
+        false: {},
+      },
+      disabled: {
+        true: { color: theme.scheme.onSurface, opacity: theme.state.disabledContent },
+        false: {},
+      },
+    },
   },
 
   trailingContainer: {
@@ -713,20 +685,22 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: 'center',
   },
 
-  disabled: {
-    color: theme.scheme.onSurface,
-    opacity: theme.state.disabledContent,
-  },
-
   // -- Supporting text --
   supportingText: {
     paddingTop: SUPPORTING_TEXT_TOP_PADDING,
     paddingHorizontal: PADDING_HORIZONTAL,
     color: theme.scheme.onSurfaceVariant,
-  },
 
-  supportingTextError: {
-    color: theme.scheme.error,
+    variants: {
+      error: {
+        true: { color: theme.scheme.error },
+        false: {},
+      },
+      disabled: {
+        true: { color: theme.scheme.onSurface, opacity: theme.state.disabledContent },
+        false: {},
+      },
+    },
   },
 }));
 

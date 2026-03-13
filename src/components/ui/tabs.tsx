@@ -18,7 +18,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { getDisplayName } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -58,19 +58,9 @@ type TabProps = {
   children?: React.ReactNode;
 };
 
-type TabIconProps = Omit<IconProps, 'size'> & {
-  /** @internal Injected by parent Tab. */
-  __internal__tabActive?: boolean;
-  /** @internal Injected by parent Tab. */
-  __internal__tabVariant?: TabVariant;
-};
+type TabIconProps = Omit<IconProps, 'size'>;
 
-type TabLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  /** @internal Injected by parent Tab. */
-  __internal__tabActive?: boolean;
-  /** @internal Injected by parent Tab. */
-  __internal__tabVariant?: TabVariant;
-};
+type TabLabelProps = Omit<TextProps, 'variant' | 'size'>;
 
 // =============================================================================
 // Context (for Tabs -> Tab communication)
@@ -85,8 +75,11 @@ type TabsContextValue = {
   scrollable: boolean;
   registerLayout: (value: string, layout: TabLayout) => void;
 };
+const [TabsProvider, useTabsContext] = createComponentContext<TabsContextValue>('Tabs');
 
-const TabsContext = React.createContext<TabsContextValue | null>(null);
+// Tab → TabIcon/TabLabel context
+type TabItemContextValue = { active: boolean; variant: TabVariant };
+const [TabItemProvider, useTabItem] = createComponentContext<TabItemContextValue>('Tab');
 
 // =============================================================================
 // Constants (M3 Specs)
@@ -220,7 +213,7 @@ function Tabs({
 
   if (scrollable) {
     return (
-      <TabsContext.Provider value={contextValue}>
+      <TabsProvider value={contextValue}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -230,16 +223,16 @@ function Tabs({
         >
           {content}
         </ScrollView>
-      </TabsContext.Provider>
+      </TabsProvider>
     );
   }
 
   return (
-    <TabsContext.Provider value={contextValue}>
+    <TabsProvider value={contextValue}>
       <View accessibilityRole="tablist" style={[styles.container, style]}>
         {content}
       </View>
-    </TabsContext.Provider>
+    </TabsProvider>
   );
 }
 
@@ -248,7 +241,7 @@ function Tabs({
 // =============================================================================
 
 function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps) {
-  const ctx = React.useContext(TabsContext);
+  const ctx = useTabsContext();
   const variant = ctx?.variant ?? 'primary';
   const scrollable = ctx?.scrollable ?? false;
   const active = ctx ? ctx.value === tabValue : false;
@@ -256,9 +249,7 @@ function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps)
   // Detect if children include an icon (for primary height determination)
   let hasIcon = false;
   React.Children.forEach(children, (child) => {
-    if (!React.isValidElement(child)) return;
-    const displayName = getDisplayName(child);
-    if (displayName === 'TabIcon') hasIcon = true;
+    if (React.isValidElement(child) && child.type === TabIcon) hasIcon = true;
   });
 
   const isPrimaryWithIcon = variant === 'primary' && hasIcon;
@@ -289,18 +280,7 @@ function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps)
     registerLayout?.(tabValue, { x, width });
   }, [registerLayout, tabValue]);
 
-  // Clone children with __internal__ props
-  const clonedChildren = React.Children.map(children, (child) => {
-    if (!React.isValidElement(child)) return child;
-    const displayName = getDisplayName(child);
-    if (displayName === 'TabIcon' || displayName === 'TabLabel') {
-      return React.cloneElement(child, {
-        __internal__tabActive: active,
-        __internal__tabVariant: variant,
-      } as any);
-    }
-    return child;
-  });
+  const tabItemCtx = React.useMemo(() => ({ active, variant }), [active, variant]);
 
   // Determine state layer color based on variant and active state
   // Primary active: primary, Primary inactive: onSurface
@@ -319,7 +299,7 @@ function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps)
       accessibilityLabel={accessibilityLabel}
     >
       <View style={[styles.tabContent, variant === 'primary' ? styles.tabContentPrimary : styles.tabContentSecondary]}>
-        {clonedChildren}
+        <TabItemProvider value={tabItemCtx}>{children}</TabItemProvider>
       </View>
       <Animated.View style={[styles.stateLayer, stateLayerVariantStyle, stateLayerAnimatedStyle]} />
     </RNPressable>
@@ -332,8 +312,9 @@ Tab.displayName = 'Tab';
 // TabIcon (icon — color changes based on active state and variant)
 // =============================================================================
 
-function TabIcon({ __internal__tabActive = false, __internal__tabVariant = 'primary', style, ...props }: TabIconProps) {
-  styles.useVariants({ active: __internal__tabActive, variant: __internal__tabVariant });
+function TabIcon({ style, ...props }: TabIconProps) {
+  const { active, variant } = useTabItem();
+  styles.useVariants({ active, variant });
 
   return <Icon size={ICON_SIZE} style={[styles.icon, style]} {...props} />;
 }
@@ -344,13 +325,9 @@ TabIcon.displayName = 'TabIcon';
 // TabLabel (label text — color changes based on active state and variant)
 // =============================================================================
 
-function TabLabel({
-  __internal__tabActive = false,
-  __internal__tabVariant = 'primary',
-  style,
-  ...props
-}: TabLabelProps) {
-  styles.useVariants({ active: __internal__tabActive, variant: __internal__tabVariant });
+function TabLabel({ style, ...props }: TabLabelProps) {
+  const { active, variant } = useTabItem();
+  styles.useVariants({ active, variant });
 
   return <Text variant="title" size="small" style={[styles.label, style]} numberOfLines={1} {...props} />;
 }

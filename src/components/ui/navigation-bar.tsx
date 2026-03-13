@@ -18,7 +18,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { getDisplayName } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -54,15 +54,9 @@ type NavigationBarItemProps = {
   children?: React.ReactNode;
 };
 
-type NavigationBarIconProps = Omit<IconProps, 'size'> & {
-  /** @internal Injected by parent NavigationBarItem. */
-  __internal__navActive?: boolean;
-};
+type NavigationBarIconProps = Omit<IconProps, 'size'>;
 
-type NavigationBarLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  /** @internal Injected by parent NavigationBarItem. */
-  __internal__navActive?: boolean;
-};
+type NavigationBarLabelProps = Omit<TextProps, 'variant' | 'size'>;
 
 // =============================================================================
 // Context (for NavigationBar → NavigationBarItem communication)
@@ -73,8 +67,12 @@ type NavigationBarContextValue = {
   onSelect: (value: string) => void;
   itemLayout: NavigationBarItemLayout;
 };
+const [NavigationBarProvider, useNavigationBarContext] =
+  createComponentContext<NavigationBarContextValue>('NavigationBar');
 
-const NavigationBarContext = React.createContext<NavigationBarContextValue | null>(null);
+// NavigationBarItem → Icon/Label context
+type NavBarItemContextValue = { active: boolean };
+const [NavBarItemProvider, useNavBarItem] = createComponentContext<NavBarItemContextValue>('NavigationBarItem');
 
 // =============================================================================
 // Constants (M3 Specs)
@@ -130,13 +128,13 @@ function NavigationBar({
   styles.useVariants({ itemLayout });
 
   return (
-    <NavigationBarContext.Provider value={contextValue}>
+    <NavigationBarProvider value={contextValue}>
       <View accessibilityRole="navigation" style={styles.wrapper}>
         <View accessibilityRole="tablist" style={[styles.container, style]}>
           {children}
         </View>
       </View>
-    </NavigationBarContext.Provider>
+    </NavigationBarProvider>
   );
 }
 
@@ -151,7 +149,7 @@ function NavigationBarItem({
   indicatorStyle,
   children,
 }: NavigationBarItemProps) {
-  const ctx = React.useContext(NavigationBarContext);
+  const ctx = useNavigationBarContext();
   const itemLayout = ctx?.itemLayout ?? 'vertical';
   const active = ctx ? ctx.value === itemValue : false;
 
@@ -189,22 +187,16 @@ function NavigationBarItem({
     opacity: interpolate(progress.press.value, [0, 1], [0, animatedTheme.value.state.pressed], Extrapolation.CLAMP),
   }));
 
-  // Single-pass slot extraction — classify children by displayName
+  // Single-pass slot extraction — classify children by type
   let iconEl: React.ReactNode = null;
   let labelEl: React.ReactNode = null;
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = getDisplayName(child);
-    if (displayName === 'NavigationBarIcon') {
-      iconEl = React.cloneElement(child, {
-        __internal__navActive: active,
-      } as any);
-    } else if (displayName === 'NavigationBarLabel') {
-      labelEl = React.cloneElement(child, {
-        __internal__navActive: active,
-      } as any);
-    }
+    if (child.type === NavigationBarIcon) iconEl = child;
+    else if (child.type === NavigationBarLabel) labelEl = child;
   });
+
+  const navBarItemCtx = React.useMemo(() => ({ active }), [active]);
 
   return (
     <RNPressable
@@ -215,23 +207,25 @@ function NavigationBarItem({
       accessibilityState={{ selected: active }}
       accessibilityLabel={accessibilityLabel}
     >
-      {itemLayout === 'vertical' ? (
-        <View style={styles.itemContentVertical}>
-          <View style={styles.indicatorContainerVertical}>
-            <Animated.View style={[styles.indicatorVertical, indicatorAnimatedStyle, indicatorStyle]} />
+      <NavBarItemProvider value={navBarItemCtx}>
+        {itemLayout === 'vertical' ? (
+          <View style={styles.itemContentVertical}>
+            <View style={styles.indicatorContainerVertical}>
+              <Animated.View style={[styles.indicatorVertical, indicatorAnimatedStyle, indicatorStyle]} />
+              <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
+              {iconEl}
+            </View>
+            {labelEl}
+          </View>
+        ) : (
+          <View style={styles.indicatorContainerHorizontal}>
+            <Animated.View style={[styles.indicatorHorizontal, indicatorAnimatedStyle, indicatorStyle]} />
             <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
             {iconEl}
+            {labelEl}
           </View>
-          {labelEl}
-        </View>
-      ) : (
-        <View style={styles.indicatorContainerHorizontal}>
-          <Animated.View style={[styles.indicatorHorizontal, indicatorAnimatedStyle, indicatorStyle]} />
-          <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
-          {iconEl}
-          {labelEl}
-        </View>
-      )}
+        )}
+      </NavBarItemProvider>
     </RNPressable>
   );
 }
@@ -240,8 +234,9 @@ function NavigationBarItem({
 // NavigationBarIcon (icon — color changes based on active state)
 // =============================================================================
 
-function NavigationBarIcon({ __internal__navActive = false, style, ...props }: NavigationBarIconProps) {
-  styles.useVariants({ active: __internal__navActive });
+function NavigationBarIcon({ style, ...props }: NavigationBarIconProps) {
+  const { active } = useNavBarItem();
+  styles.useVariants({ active });
 
   return <Icon size={ICON_SIZE} style={[styles.icon, style]} {...props} />;
 }
@@ -252,8 +247,9 @@ NavigationBarIcon.displayName = 'NavigationBarIcon';
 // NavigationBarLabel (label text — color changes based on active state)
 // =============================================================================
 
-function NavigationBarLabel({ __internal__navActive = false, style, ...props }: NavigationBarLabelProps) {
-  styles.useVariants({ active: __internal__navActive });
+function NavigationBarLabel({ style, ...props }: NavigationBarLabelProps) {
+  const { active } = useNavBarItem();
+  styles.useVariants({ active });
 
   return <Text variant="label" size="medium" style={[styles.label, style]} numberOfLines={1} {...props} />;
 }

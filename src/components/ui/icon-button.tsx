@@ -18,6 +18,7 @@ import type { Scheme } from '@/theme/scheme';
 
 import { useControllableState, useInteraction } from '../../hooks';
 import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
+import { useButtonGroupItem } from './button-group';
 import { Icon, type MaterialSymbol } from './icon';
 
 function getIconButtonRestShapeToken(
@@ -75,9 +76,6 @@ type IconButtonProps = Omit<RNPressableProps, 'style' | 'children'> & {
   defaultSelected?: boolean;
   onSelectedChange?: (selected: boolean) => void;
 
-  /** @internal Used by ButtonGroup connected variant to suppress own corner animation. */
-  __internal__suppressCornerAnimation?: boolean;
-
   style?: StyleProp<ViewStyle>;
   iconStyle?: StyleProp<TextStyle>;
   containerStyle?: StyleProp<ViewStyle>;
@@ -92,7 +90,6 @@ function IconButton({
   selected: selectedProp,
   defaultSelected,
   onSelectedChange,
-  __internal__suppressCornerAnimation = false,
   style,
   iconStyle,
   containerStyle,
@@ -111,7 +108,8 @@ function IconButton({
 
   const { progress, handlers } = useInteraction('press', 'hover', 'focus');
 
-  const suppressCorner = __internal__suppressCornerAnimation;
+  const groupItem = useButtonGroupItem();
+  const suppressCorner = groupItem?.suppressCornerAnimation ?? false;
   const restShape = getIconButtonRestShapeToken(size, shape, selection);
   const pressedShape = suppressCorner ? undefined : getIconButtonPressedShapeToken(size);
 

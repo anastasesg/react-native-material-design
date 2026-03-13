@@ -19,7 +19,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { FAB, type FABColorStyle, FABIcon, type FABSize } from './fab';
 import { Icon, type MaterialSymbol } from './icon';
 import { Text } from './text';
@@ -29,6 +29,9 @@ import { Text } from './text';
 // =============================================================================
 
 type FABMenuColor = 'primary' | 'secondary' | 'tertiary';
+
+type FABMenuItemCtx = { color: FABMenuColor; open: boolean; index: number };
+const [FABMenuItemProvider, useFABMenuItem] = createComponentContext<FABMenuItemCtx>('FABMenuItem');
 
 type FABMenuProps = {
   /** Icon name shown on the FAB when the menu is closed. */
@@ -62,12 +65,6 @@ type FABMenuItemProps = {
   onPress?: () => void;
   /** Style applied to the item container. */
   style?: StyleProp<ViewStyle>;
-  /** @internal Color set passed from parent FABMenu. */
-  __internal__color?: FABMenuColor;
-  /** @internal Animation index passed from parent FABMenu. */
-  __internal__index?: number;
-  /** @internal Whether the menu is open, passed from parent FABMenu. */
-  __internal__open?: boolean;
 };
 
 // =============================================================================
@@ -93,9 +90,6 @@ const FAB_COLOR_MAP: Record<FABMenuColor, FABColorStyle> = {
   secondary: 'secondaryContainer',
   tertiary: 'tertiaryContainer',
 };
-
-const isFABMenuItem = childGuard<FABMenuItemProps>('FABMenuItem');
-const FAB_MENU_CHILDREN = ['FABMenuItem'];
 
 // =============================================================================
 // FABMenu
@@ -133,7 +127,9 @@ function FABMenu({
     opacity: scrimOpacity.value,
   }));
 
-  const childArray = React.Children.toArray(children).filter(React.isValidElement);
+  const menuItems = React.Children.toArray(children).filter(
+    (child): child is React.ReactElement => React.isValidElement(child) && child.type === FABMenuItem,
+  );
 
   return (
     <View style={style}>
@@ -171,20 +167,11 @@ function FABMenu({
                 showsVerticalScrollIndicator={false}
                 bounces={false}
               >
-                {childArray.map((child, index) => {
-                  if (!React.isValidElement(child)) return child;
-
-                  if (isFABMenuItem(child)) {
-                    return React.cloneElement(child, {
-                      __internal__color: color,
-                      __internal__index: index,
-                      __internal__open: isOpen,
-                    });
-                  }
-
-                  warnUnexpectedChild('FABMenu', child, FAB_MENU_CHILDREN);
-                  return child;
-                })}
+                {menuItems.map((child, index) => (
+                  <FABMenuItemProvider key={index} value={{ color, open: isOpen, index }}>
+                    {child}
+                  </FABMenuItemProvider>
+                ))}
               </ScrollView>
 
               {/* Close button - always visible, not scrolled */}
@@ -242,16 +229,9 @@ function CloseButton({ color, onPress, open }: { color: FABMenuColor; onPress: (
 // FABMenuItem
 // =============================================================================
 
-function FABMenuItem({
-  name,
-  label,
-  onPress,
-  style,
-  __internal__color = 'primary',
-  __internal__index = 0,
-  __internal__open = false,
-}: FABMenuItemProps) {
-  menuStyles.useVariants({ itemColor: __internal__color });
+function FABMenuItem({ name, label, onPress, style }: FABMenuItemProps) {
+  const { color, open, index } = useFABMenuItem();
+  menuStyles.useVariants({ itemColor: color });
   const animatedTheme = useAnimatedTheme();
   const { progress, handlers } = useInteraction('press', 'hover', 'focus');
   const itemScale = useSharedValue(0);
@@ -259,15 +239,15 @@ function FABMenuItem({
 
   React.useEffect(() => {
     const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    if (__internal__open) {
-      const delay = (__internal__index + 1) * STAGGER_DELAY;
+    if (open) {
+      const delay = (index + 1) * STAGGER_DELAY;
       itemScale.value = withDelay(delay, withSpring(1, fastEffects));
       itemOpacity.value = withDelay(delay, withSpring(1, fastEffects));
     } else {
       itemScale.value = 0;
       itemOpacity.value = 0;
     }
-  }, [__internal__open, __internal__index, itemScale, itemOpacity]);
+  }, [open, index, itemScale, itemOpacity]);
 
   const animatedItemStyle = useAnimatedStyle(() => ({
     transform: [{ scale: itemScale.value }],

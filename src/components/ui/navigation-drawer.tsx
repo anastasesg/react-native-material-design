@@ -21,7 +21,7 @@ import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { getDisplayName } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -69,15 +69,9 @@ type NavigationDrawerItemProps = {
   children?: React.ReactNode;
 };
 
-type NavigationDrawerIconProps = Omit<IconProps, 'size'> & {
-  /** @internal Injected by parent NavigationDrawerItem. */
-  __internal__drawerActive?: boolean;
-};
+type NavigationDrawerIconProps = Omit<IconProps, 'size'>;
 
-type NavigationDrawerLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  /** @internal Injected by parent NavigationDrawerItem. */
-  __internal__drawerActive?: boolean;
-};
+type NavigationDrawerLabelProps = Omit<TextProps, 'variant' | 'size'>;
 
 type NavigationDrawerBadgeProps = Omit<TextProps, 'variant' | 'size'>;
 
@@ -94,8 +88,12 @@ type NavigationDrawerContextValue = {
   value: string | undefined;
   onSelect: (value: string) => void;
 };
+const [NavigationDrawerProvider, useNavigationDrawerContext] =
+  createComponentContext<NavigationDrawerContextValue>('NavigationDrawer');
 
-const NavigationDrawerContext = React.createContext<NavigationDrawerContextValue | null>(null);
+// NavigationDrawerItem → Icon/Label context
+type DrawerItemContextValue = { active: boolean };
+const [DrawerItemProvider, useDrawerItem] = createComponentContext<DrawerItemContextValue>('NavigationDrawerItem');
 
 // =============================================================================
 // Constants (M3 Specs)
@@ -237,7 +235,7 @@ function NavigationDrawer({
       )}
 
       {/* Scrollable content */}
-      <NavigationDrawerContext.Provider value={contextValue}>
+      <NavigationDrawerProvider value={contextValue}>
         <ScrollView
           style={styles.scrollContent}
           contentContainerStyle={styles.scrollContentContainer}
@@ -246,7 +244,7 @@ function NavigationDrawer({
         >
           {children}
         </ScrollView>
-      </NavigationDrawerContext.Provider>
+      </NavigationDrawerProvider>
     </Animated.View>
   );
 
@@ -286,7 +284,7 @@ function NavigationDrawerItem({
   indicatorStyle,
   children,
 }: NavigationDrawerItemProps) {
-  const ctx = React.useContext(NavigationDrawerContext);
+  const ctx = useNavigationDrawerContext();
   const active = ctx ? ctx.value === itemValue : false;
 
   styles.useVariants({ active });
@@ -324,26 +322,19 @@ function NavigationDrawerItem({
     opacity: interpolate(progress.press.value, [0, 1], [0, animatedTheme.value.state.pressed], Extrapolation.CLAMP),
   }));
 
-  // Slot extraction — classify children by displayName
+  // Slot extraction — classify children by type
   let iconEl: React.ReactNode = null;
   let labelEl: React.ReactNode = null;
   let badgeEl: React.ReactNode = null;
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = getDisplayName(child);
-    if (displayName === 'NavigationDrawerIcon') {
-      iconEl = React.cloneElement(child, {
-        __internal__drawerActive: active,
-      } as any);
-    } else if (displayName === 'NavigationDrawerLabel') {
-      labelEl = React.cloneElement(child, {
-        __internal__drawerActive: active,
-      } as any);
-    } else if (displayName === 'NavigationDrawerBadge') {
-      badgeEl = child;
-    }
+    if (child.type === NavigationDrawerIcon) iconEl = child;
+    else if (child.type === NavigationDrawerLabel) labelEl = child;
+    else if (child.type === NavigationDrawerBadge) badgeEl = child;
   });
+
+  const drawerItemCtx = React.useMemo(() => ({ active }), [active]);
 
   return (
     <RNPressable
@@ -354,18 +345,20 @@ function NavigationDrawerItem({
       accessibilityState={{ selected: active }}
       accessibilityLabel={accessibilityLabel}
     >
-      <View style={styles.itemContent}>
-        {/* Active indicator background */}
-        <Animated.View style={[styles.indicator, indicatorAnimatedStyle, indicatorStyle]} />
-        {/* State layer */}
-        <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
-        {/* Content row */}
-        <View style={styles.itemRow}>
-          {iconEl}
-          {labelEl}
-          {badgeEl && <View style={styles.badgeContainer}>{badgeEl}</View>}
+      <DrawerItemProvider value={drawerItemCtx}>
+        <View style={styles.itemContent}>
+          {/* Active indicator background */}
+          <Animated.View style={[styles.indicator, indicatorAnimatedStyle, indicatorStyle]} />
+          {/* State layer */}
+          <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
+          {/* Content row */}
+          <View style={styles.itemRow}>
+            {iconEl}
+            {labelEl}
+            {badgeEl && <View style={styles.badgeContainer}>{badgeEl}</View>}
+          </View>
         </View>
-      </View>
+      </DrawerItemProvider>
     </RNPressable>
   );
 }
@@ -376,8 +369,9 @@ NavigationDrawerItem.displayName = 'NavigationDrawerItem';
 // NavigationDrawerIcon (leading icon — color changes based on active state)
 // =============================================================================
 
-function NavigationDrawerIcon({ __internal__drawerActive = false, style, ...props }: NavigationDrawerIconProps) {
-  styles.useVariants({ active: __internal__drawerActive });
+function NavigationDrawerIcon({ style, ...props }: NavigationDrawerIconProps) {
+  const { active } = useDrawerItem();
+  styles.useVariants({ active });
 
   return <Icon size={ICON_SIZE} style={[styles.icon, style]} {...props} />;
 }
@@ -388,8 +382,9 @@ NavigationDrawerIcon.displayName = 'NavigationDrawerIcon';
 // NavigationDrawerLabel (label text — color/weight changes based on active state)
 // =============================================================================
 
-function NavigationDrawerLabel({ __internal__drawerActive = false, style, ...props }: NavigationDrawerLabelProps) {
-  styles.useVariants({ active: __internal__drawerActive });
+function NavigationDrawerLabel({ style, ...props }: NavigationDrawerLabelProps) {
+  const { active } = useDrawerItem();
+  styles.useVariants({ active });
 
   return <Text variant="label" size="large" style={[styles.label, style]} numberOfLines={1} {...props} />;
 }

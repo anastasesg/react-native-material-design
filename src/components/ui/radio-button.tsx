@@ -20,7 +20,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { Text, type TextProps } from './text';
 
 // =============================================================================
@@ -63,17 +63,9 @@ type RadioButtonToggleProps = {
   style?: StyleProp<ViewStyle>;
   /** Style applied to the outer ring container. */
   containerStyle?: StyleProp<ViewStyle>;
-  /** @internal Injected by parent RadioButton. */
-  __internal__radioSelected?: boolean;
-  __internal__radioDisabled?: boolean;
-  __internal__radioPressProgress?: SharedValue<number>;
-  __internal__radioSelectProgress?: SharedValue<number>;
 };
 
-type RadioButtonLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  /** @internal Injected by parent RadioButton. */
-  __internal__radioDisabled?: boolean;
-};
+type RadioButtonLabelProps = Omit<TextProps, 'variant' | 'size'>;
 
 // =============================================================================
 // Context (for RadioButtonGroup → RadioButton communication)
@@ -84,8 +76,7 @@ type RadioGroupContextValue = {
   onSelect: (value: string) => void;
   disabled: boolean;
 };
-
-const RadioGroupContext = React.createContext<RadioGroupContextValue | null>(null);
+const [RadioGroupProvider, useRadioGroupContext] = createComponentContext<RadioGroupContextValue>('RadioButtonGroup');
 
 // =============================================================================
 // Constants (M3 Specs)
@@ -121,17 +112,26 @@ function RadioButtonGroup({
   );
 
   return (
-    <RadioGroupContext.Provider value={contextValue}>
+    <RadioGroupProvider value={contextValue}>
       <View accessibilityRole="radiogroup" style={style}>
         {children}
       </View>
-    </RadioGroupContext.Provider>
+    </RadioGroupProvider>
   );
 }
 
-const isRadioButtonToggle = childGuard<RadioButtonToggleProps>('RadioButtonToggle');
-const isRadioButtonLabel = childGuard<RadioButtonLabelProps>('RadioButtonLabel');
-const RADIO_BUTTON_CHILDREN = ['RadioButtonToggle', 'RadioButtonLabel'];
+// =============================================================================
+// Context (RadioButton → Toggle/Label)
+// =============================================================================
+
+type RadioButtonContextValue = {
+  selected: boolean;
+  disabled: boolean;
+  pressProgress: SharedValue<number>;
+  selectProgress: SharedValue<number>;
+};
+
+const [RadioButtonProvider, useRadioButton] = createComponentContext<RadioButtonContextValue>('RadioButton');
 
 // =============================================================================
 // RadioButton (parent — touch target + state management)
@@ -147,7 +147,7 @@ function RadioButton({
   style,
   children,
 }: RadioButtonProps) {
-  const group = React.useContext(RadioGroupContext);
+  const group = useRadioGroupContext();
 
   // When inside a group, derive selected/disabled from context
   const isInGroup = group !== null && itemValue !== undefined;
@@ -184,6 +184,16 @@ function RadioButton({
     }
   }, [disabled, selected, isInGroup, group, itemValue, setStandaloneSelected]);
 
+  const ctx = React.useMemo<RadioButtonContextValue>(
+    () => ({
+      selected,
+      disabled,
+      pressProgress: progress.press,
+      selectProgress,
+    }),
+    [selected, disabled, progress.press, selectProgress],
+  );
+
   return (
     <RNPressable
       style={[styles.root, style]}
@@ -197,22 +207,7 @@ function RadioButton({
       }}
       accessibilityLabel={accessibilityLabel}
     >
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return child;
-
-        const internal = {
-          __internal__radioSelected: selected,
-          __internal__radioDisabled: disabled,
-          __internal__radioPressProgress: progress.press,
-          __internal__radioSelectProgress: selectProgress,
-        };
-
-        if (isRadioButtonToggle(child)) return React.cloneElement(child, internal);
-        if (isRadioButtonLabel(child)) return React.cloneElement(child, internal);
-
-        warnUnexpectedChild('RadioButton', child, RADIO_BUTTON_CHILDREN);
-        return child;
-      })}
+      <RadioButtonProvider value={ctx}>{children}</RadioButtonProvider>
     </RNPressable>
   );
 }
@@ -221,26 +216,12 @@ function RadioButton({
 // RadioButtonToggle (visual circle — outer ring, inner dot, state layer)
 // =============================================================================
 
-function RadioButtonToggle({
-  style,
-  containerStyle,
-  __internal__radioSelected = false,
-  __internal__radioDisabled = false,
-  __internal__radioPressProgress,
-  __internal__radioSelectProgress,
-}: RadioButtonToggleProps) {
-  const selected = __internal__radioSelected;
-  const disabled = __internal__radioDisabled;
+function RadioButtonToggle({ style, containerStyle }: RadioButtonToggleProps) {
+  const { selected, disabled, pressProgress, selectProgress } = useRadioButton();
 
   styles.useVariants({ selected, disabled });
 
   const animatedTheme = useAnimatedTheme();
-
-  // Fallback shared values for standalone usage
-  const fallbackPress = useSharedValue(0);
-  const fallbackSelect = useSharedValue(selected ? 1 : 0);
-  const pressProgress = __internal__radioPressProgress ?? fallbackPress;
-  const selectProgress = __internal__radioSelectProgress ?? fallbackSelect;
 
   // State layer opacity (press feedback)
   const animatedStateStyle = useAnimatedStyle(() => ({
@@ -292,8 +273,9 @@ function RadioButtonToggle({
 // RadioButtonLabel (adjacent text)
 // =============================================================================
 
-function RadioButtonLabel({ __internal__radioDisabled = false, style, ...props }: RadioButtonLabelProps) {
-  styles.useVariants({ disabled: __internal__radioDisabled });
+function RadioButtonLabel({ style, ...props }: RadioButtonLabelProps) {
+  const { disabled } = useRadioButton();
+  styles.useVariants({ disabled });
 
   return <Text variant="body" size="large" style={[styles.label, style]} {...props} />;
 }

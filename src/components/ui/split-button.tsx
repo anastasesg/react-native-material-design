@@ -4,7 +4,7 @@
 /// Guidelines: https://m3.material.io/components/split-button/guidelines
 /// Accessibility: https://m3.material.io/components/split-button/accessibility
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   type GestureResponderEvent,
   Pressable as RNPressable,
@@ -19,7 +19,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import type { Scheme } from '@/theme/scheme';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps, type TextSize, type TextVariant } from './text';
@@ -30,6 +30,14 @@ import { Text, type TextProps, type TextSize, type TextVariant } from './text';
 
 type SplitButtonSize = 'xsmall' | 'small' | 'medium' | 'large' | 'xlarge';
 type SplitButtonVariant = 'filled' | 'elevated' | 'tonal' | 'outlined';
+
+type SplitButtonCtx = {
+  size: SplitButtonSize;
+  variant: SplitButtonVariant;
+  disabled: boolean;
+};
+
+const [SplitButtonProvider, useSplitButton] = createComponentContext<SplitButtonCtx>('SplitButton');
 
 type SplitButtonProps = {
   size?: SplitButtonSize;
@@ -113,13 +121,6 @@ const TRAILING_ICON_OFFSET: Record<SplitButtonSize, number> = {
   xlarge: -6,
 };
 
-const isSplitButtonLeading = childGuard<SplitButtonLeadingProps>('SplitButtonLeading');
-const isSplitButtonTrailing = childGuard<SplitButtonTrailingProps>('SplitButtonTrailing');
-const isSplitButtonIcon = childGuard<SplitButtonIconProps>('SplitButtonIcon');
-const isSplitButtonLabel = childGuard<SplitButtonLabelProps>('SplitButtonLabel');
-const SPLIT_BUTTON_CHILDREN = ['SplitButtonLeading', 'SplitButtonTrailing'];
-const SPLIT_BUTTON_SUB_CHILDREN = ['SplitButtonIcon', 'SplitButtonLabel'];
-
 // =============================================================================
 // Main Component (non-pressable layout root)
 // =============================================================================
@@ -127,23 +128,11 @@ const SPLIT_BUTTON_SUB_CHILDREN = ['SplitButtonIcon', 'SplitButtonLabel'];
 function SplitButton({ size = 'small', variant = 'filled', disabled = false, style, children }: SplitButtonProps) {
   styles.useVariants({ size, variant, disabled });
 
+  const ctx = useMemo<SplitButtonCtx>(() => ({ size, variant, disabled }), [size, variant, disabled]);
+
   return (
     <View style={[styles.root, { height: HEIGHT[size] }, style]} accessibilityRole="none">
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return child;
-
-        const internal = {
-          __internal__splitSize: size,
-          __internal__splitVariant: variant,
-          __internal__splitDisabled: disabled,
-        };
-
-        if (isSplitButtonLeading(child)) return React.cloneElement(child, internal);
-        if (isSplitButtonTrailing(child)) return React.cloneElement(child, internal);
-
-        warnUnexpectedChild('SplitButton', child, SPLIT_BUTTON_CHILDREN);
-        return child;
-      })}
+      <SplitButtonProvider value={ctx}>{children}</SplitButtonProvider>
     </View>
   );
 }
@@ -156,20 +145,10 @@ type SplitButtonLeadingProps = Omit<RNPressableProps, 'style' | 'children'> & {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   containerStyle?: StyleProp<ViewStyle>;
-  __internal__splitSize?: SplitButtonSize;
-  __internal__splitVariant?: SplitButtonVariant;
-  __internal__splitDisabled?: boolean;
 };
 
-function SplitButtonLeading({
-  style,
-  containerStyle,
-  children,
-  __internal__splitSize: size = 'small',
-  __internal__splitVariant: variant = 'filled',
-  __internal__splitDisabled: disabled = false,
-  ...props
-}: SplitButtonLeadingProps) {
+function SplitButtonLeading({ style, containerStyle, children, ...props }: SplitButtonLeadingProps) {
+  const { size, variant, disabled } = useSplitButton();
   styles.useVariants({ size, variant, disabled });
 
   const { progress, handlers } = useInteraction('press', 'hover', 'focus');
@@ -209,21 +188,7 @@ function SplitButtonLeading({
         ]}
       >
         <StateLayer progress={progress} color={stateLayerColor} disabled={disabled} />
-        {React.Children.map(children, (child) => {
-          if (!React.isValidElement(child)) return child;
-
-          const internal = {
-            __internal__splitSize: size,
-            __internal__splitVariant: variant,
-            __internal__splitDisabled: disabled,
-          };
-
-          if (isSplitButtonIcon(child)) return React.cloneElement(child, internal);
-          if (isSplitButtonLabel(child)) return React.cloneElement(child, internal);
-
-          warnUnexpectedChild('SplitButtonLeading', child, SPLIT_BUTTON_SUB_CHILDREN);
-          return child;
-        })}
+        {children}
       </ShapeContainer>
     </RNPressable>
   );
@@ -239,9 +204,6 @@ type SplitButtonTrailingProps = Omit<RNPressableProps, 'style' | 'children'> & {
   onOpenChange?: (open: boolean) => void;
   style?: StyleProp<ViewStyle>;
   containerStyle?: StyleProp<ViewStyle>;
-  __internal__splitSize?: SplitButtonSize;
-  __internal__splitVariant?: SplitButtonVariant;
-  __internal__splitDisabled?: boolean;
 };
 
 function SplitButtonTrailing({
@@ -251,11 +213,9 @@ function SplitButtonTrailing({
   style,
   containerStyle,
   onPress,
-  __internal__splitSize: size = 'small',
-  __internal__splitVariant: variant = 'filled',
-  __internal__splitDisabled: disabled = false,
   ...props
 }: SplitButtonTrailingProps) {
+  const { size, variant, disabled } = useSplitButton();
   const [open, setOpen] = useControllableState({
     value: openProp,
     defaultValue: defaultOpen,
@@ -341,22 +301,13 @@ function SplitButtonTrailing({
 // Sub-components: Icon & Label for the leading button
 // =============================================================================
 
-type SplitButtonIconProps = IconProps & {
-  __internal__splitSize?: SplitButtonSize;
-  __internal__splitVariant?: SplitButtonVariant;
-  __internal__splitDisabled?: boolean;
-};
+type SplitButtonIconProps = IconProps;
 
-function SplitButtonIcon({
-  __internal__splitSize: size = 'small',
-  __internal__splitVariant: variant = 'filled',
-  __internal__splitDisabled: disabled = false,
-  style,
-  ...props
-}: SplitButtonIconProps) {
+function SplitButtonIcon({ style, ...props }: SplitButtonIconProps) {
+  const { size, variant, disabled } = useSplitButton();
   styles.useVariants({ size, variant, disabled });
 
-  const iconSize = React.useMemo(() => {
+  const iconSize = useMemo(() => {
     if (size === 'xsmall') return 20;
     if (size === 'small') return 20;
     if (size === 'medium') return 24;
@@ -368,22 +319,13 @@ function SplitButtonIcon({
   return <Icon size={iconSize} style={[styles.label, style]} {...props} />;
 }
 
-type SplitButtonLabelProps = TextProps & {
-  __internal__splitSize?: SplitButtonSize;
-  __internal__splitVariant?: SplitButtonVariant;
-  __internal__splitDisabled?: boolean;
-};
+type SplitButtonLabelProps = TextProps;
 
-function SplitButtonLabel({
-  __internal__splitSize: size = 'small',
-  __internal__splitVariant: variant = 'filled',
-  __internal__splitDisabled: disabled = false,
-  style,
-  ...props
-}: SplitButtonLabelProps) {
+function SplitButtonLabel({ style, ...props }: SplitButtonLabelProps) {
+  const { size, variant, disabled } = useSplitButton();
   styles.useVariants({ size, variant, disabled });
 
-  const textVariant: TextVariant = React.useMemo(() => {
+  const textVariant: TextVariant = useMemo(() => {
     if (size === 'xsmall') return 'label';
     if (size === 'small') return 'label';
     if (size === 'medium') return 'title';
@@ -392,7 +334,7 @@ function SplitButtonLabel({
     return 'label';
   }, [size]);
 
-  const textSize: TextSize = React.useMemo(() => {
+  const textSize: TextSize = useMemo(() => {
     if (size === 'xsmall') return 'large';
     if (size === 'small') return 'large';
     if (size === 'medium') return 'medium';

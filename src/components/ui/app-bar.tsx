@@ -8,7 +8,7 @@ import React from 'react';
 import { type StyleProp, type TextStyle, View, type ViewProps, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { getDisplayName } from '../../utilities';
+import { childGuard, createComponentContext, getDisplayName } from '../../utilities';
 import { IconButton, type IconButtonProps } from './icon-button';
 import type { SearchProps } from './search';
 import { Text } from './text';
@@ -23,12 +23,17 @@ type AppbarTextAlignment = 'leading' | 'centered';
 
 type AppbarActionPosition = 'leading' | 'trailing';
 
-type InternalAppbarProps = {
-  __internal__variant?: AppbarVariant;
-  __internal__elevation?: AppbarElevation;
-  __internal__textAlignment?: AppbarTextAlignment;
-  __internal__position?: AppbarActionPosition;
+// =============================================================================
+// Context
+// =============================================================================
+
+type AppbarContextValue = {
+  variant: AppbarVariant;
+  elevation: AppbarElevation;
+  textAlignment: AppbarTextAlignment;
 };
+
+const [AppbarProvider, useAppbar] = createComponentContext<AppbarContextValue>('Appbar');
 
 // =============================================================================
 // Display name constants
@@ -59,16 +64,12 @@ function Appbar({
 }: AppbarProps) {
   styles.useVariants({ variant, elevation });
 
+  const ctx = React.useMemo<AppbarContextValue>(
+    () => ({ variant, elevation, textAlignment }),
+    [variant, elevation, textAlignment],
+  );
+
   const childArray = React.Children.toArray(children);
-
-  const internalProps = {
-    __internal__variant: variant,
-    __internal__elevation: elevation,
-    __internal__textAlignment: textAlignment,
-  };
-
-  const leadingProps = { ...internalProps, __internal__position: 'leading' as const };
-  const trailingProps = { ...internalProps, __internal__position: 'trailing' as const };
 
   // Search variant: leading actions + search component + trailing actions
   if (variant === 'search') {
@@ -80,25 +81,27 @@ function Appbar({
       if (!React.isValidElement(child)) return;
       const displayName = getDisplayName(child);
       if (displayName === APPBAR_SEARCH) {
-        searchSlot = React.cloneElement(child, internalProps as any);
+        searchSlot = child;
       } else if (displayName === APPBAR_ACTIONS) {
-        trailingActions.push(React.cloneElement(child, trailingProps as any));
-      } else {
+        trailingActions.push(child);
+      } else if (isAppbarAction(child)) {
         // Actions before the search slot are leading, after are trailing
         if (searchSlot == null) {
-          leadingActions.push(React.cloneElement(child, leadingProps as any));
+          leadingActions.push(React.cloneElement(child, { position: 'leading' }));
         } else {
-          trailingActions.push(React.cloneElement(child, trailingProps as any));
+          trailingActions.push(React.cloneElement(child, { position: 'trailing' }));
         }
       }
     });
 
     return (
-      <View style={[styles.root, style]} {...props}>
-        {leadingActions}
-        {searchSlot}
-        {trailingActions}
-      </View>
+      <AppbarProvider value={ctx}>
+        <View style={[styles.root, style]} {...props}>
+          {leadingActions}
+          {searchSlot}
+          {trailingActions}
+        </View>
+      </AppbarProvider>
     );
   }
 
@@ -113,23 +116,25 @@ function Appbar({
         if (!React.isValidElement(child)) return;
         const displayName = getDisplayName(child);
         if (displayName === APPBAR_TITLE) {
-          titleElement = React.cloneElement(child, internalProps as any);
+          titleElement = child;
         } else if (displayName === APPBAR_ACTIONS) {
-          trailingActions.push(React.cloneElement(child, trailingProps as any));
-        } else {
-          leadingActions.push(React.cloneElement(child, leadingProps as any));
+          trailingActions.push(child);
+        } else if (isAppbarAction(child)) {
+          leadingActions.push(React.cloneElement(child, { position: 'leading' }));
         }
       });
 
       return (
-        <View style={[styles.root, style]} {...props}>
-          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-            {titleElement}
+        <AppbarProvider value={ctx}>
+          <View style={[styles.root, style]} {...props}>
+            <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+              {titleElement}
+            </View>
+            {leadingActions}
+            <View style={styles.topRowSpacer} />
+            {trailingActions}
           </View>
-          {leadingActions}
-          <View style={styles.topRowSpacer} />
-          {trailingActions}
-        </View>
+        </AppbarProvider>
       );
     }
 
@@ -140,18 +145,21 @@ function Appbar({
         const displayName = getDisplayName(child);
         if (displayName === APPBAR_TITLE) {
           foundTitle = true;
-          return React.cloneElement(child, internalProps as any);
+          return child;
         }
-        if (displayName === APPBAR_ACTIONS || foundTitle) {
-          return React.cloneElement(child, trailingProps as any);
+        if (displayName === APPBAR_ACTIONS) return child;
+        if (isAppbarAction(child)) {
+          return React.cloneElement(child, { position: foundTitle ? 'trailing' : 'leading' });
         }
-        return React.cloneElement(child, leadingProps as any);
+        return child;
       });
 
       return (
-        <View style={[styles.root, style]} {...props}>
-          {smallLeadingChildren}
-        </View>
+        <AppbarProvider value={ctx}>
+          <View style={[styles.root, style]} {...props}>
+            {smallLeadingChildren}
+          </View>
+        </AppbarProvider>
       );
     }
   }
@@ -178,18 +186,19 @@ function Appbar({
   });
 
   return (
-    <View style={[styles.root, hasSubtitle && styles.rootWithSubtitle, style]} {...props}>
-      <View style={styles.topRow}>
-        {flexLeadingActions.map((child) =>
-          React.isValidElement(child) ? React.cloneElement(child, leadingProps as any) : child)}
-        <View style={styles.topRowSpacer} />
-        {flexTrailingActions.map((child) =>
-          React.isValidElement(child) ? React.cloneElement(child, trailingProps as any) : child)}
+    <AppbarProvider value={ctx}>
+      <View style={[styles.root, hasSubtitle && styles.rootWithSubtitle, style]} {...props}>
+        <View style={styles.topRow}>
+          {flexLeadingActions.map((child) =>
+            React.isValidElement(child) && isAppbarAction(child)
+              ? React.cloneElement(child, { position: 'leading' })
+              : child)}
+          <View style={styles.topRowSpacer} />
+          {flexTrailingActions}
+        </View>
+        {flexTitleElement}
       </View>
-      {flexTitleElement &&
-        React.isValidElement(flexTitleElement) &&
-        React.cloneElement(flexTitleElement, internalProps as any)}
-    </View>
+    </AppbarProvider>
   );
 }
 Appbar.displayName = 'Appbar';
@@ -228,17 +237,14 @@ AppbarHeader.displayName = 'AppbarHeader';
 // AppbarAction (leading/trailing icon button)
 // =============================================================================
 
-type AppbarActionProps = IconButtonProps & InternalAppbarProps;
+type AppbarActionProps = IconButtonProps & {
+  position?: AppbarActionPosition;
+};
 
-function AppbarAction({
-  __internal__variant: _variant,
-  __internal__elevation: _elevation,
-  __internal__textAlignment: _textAlignment,
-  __internal__position = 'trailing',
-  iconStyle,
-  ...props
-}: AppbarActionProps) {
-  styles.useVariants({ position: __internal__position });
+const isAppbarAction = childGuard<AppbarActionProps>(APPBAR_ACTION);
+
+function AppbarAction({ position = 'trailing', iconStyle, ...props }: AppbarActionProps) {
+  styles.useVariants({ position });
 
   // M3 spec: leading icon = onSurface, trailing icon = onSurfaceVariant (IconButton default)
   return <IconButton iconStyle={[styles.actionIcon, iconStyle]} {...props} />;
@@ -249,34 +255,20 @@ AppbarAction.displayName = APPBAR_ACTION;
 // AppbarTitle (headline + optional subtitle)
 // =============================================================================
 
-type AppbarTitleProps = Omit<ViewProps, 'children'> &
-  InternalAppbarProps & {
-    title: React.ReactNode;
-    supportingText?: React.ReactNode;
+type AppbarTitleProps = Omit<ViewProps, 'children'> & {
+  title: React.ReactNode;
+  supportingText?: React.ReactNode;
 
-    titleStyle?: StyleProp<TextStyle>;
-    supportingTextStyle?: StyleProp<TextStyle>;
-  };
+  titleStyle?: StyleProp<TextStyle>;
+  supportingTextStyle?: StyleProp<TextStyle>;
+};
 
-function AppbarTitle({
-  title,
-  supportingText,
-  style,
-  titleStyle,
-  supportingTextStyle,
-  __internal__variant = 'small',
-  __internal__elevation = 'flat',
-  __internal__textAlignment = 'leading',
-  ...props
-}: AppbarTitleProps) {
-  styles.useVariants({
-    variant: __internal__variant,
-    elevation: __internal__elevation,
-    textAlignment: __internal__textAlignment,
-  });
+function AppbarTitle({ title, supportingText, style, titleStyle, supportingTextStyle, ...props }: AppbarTitleProps) {
+  const { variant, elevation, textAlignment } = useAppbar();
+  styles.useVariants({ variant, elevation, textAlignment });
 
-  const titleTypography = titleTypographyMap[__internal__variant];
-  const subtitleTypography = subtitleTypographyMap[__internal__variant];
+  const titleTypography = titleTypographyMap[variant];
+  const subtitleTypography = subtitleTypographyMap[variant];
 
   return (
     <View style={[styles.content, style]} {...props}>
@@ -301,16 +293,9 @@ AppbarTitle.displayName = APPBAR_TITLE;
 // AppbarActions (trailing action container)
 // =============================================================================
 
-type AppbarActionsProps = ViewProps & InternalAppbarProps;
+type AppbarActionsProps = ViewProps;
 
-function AppbarActions({
-  __internal__variant: _variant,
-  __internal__elevation: _elevation,
-  __internal__textAlignment: _textAlignment,
-  __internal__position: _position,
-  style,
-  ...props
-}: AppbarActionsProps) {
+function AppbarActions({ style, ...props }: AppbarActionsProps) {
   return <View style={[styles.actions, style]} {...props} />;
 }
 AppbarActions.displayName = APPBAR_ACTIONS;
@@ -319,18 +304,12 @@ AppbarActions.displayName = APPBAR_ACTIONS;
 // AppbarSearch (wraps existing Search component)
 // =============================================================================
 
-type AppbarSearchProps = InternalAppbarProps & {
+type AppbarSearchProps = {
   children: React.ReactElement<SearchProps>;
   style?: StyleProp<ViewStyle>;
 };
 
-function AppbarSearch({
-  __internal__variant: _variant,
-  __internal__elevation: _elevation,
-  __internal__textAlignment: _textAlignment,
-  children,
-  style,
-}: AppbarSearchProps) {
+function AppbarSearch({ children, style }: AppbarSearchProps) {
   // Zero out the Search component's own margins — the app bar container handles spacing
   const child = React.isValidElement(children)
     ? React.cloneElement(children, { style: { marginHorizontal: 0 } } as any)

@@ -4,14 +4,14 @@
 /// Guidelines: https://m3.material.io/components/menus/guidelines
 /// Accessibility: https://m3.material.io/components/menus/accessibility
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { LayoutChangeEvent, LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
 import { Dimensions, Modal, Pressable as RNPressable, View } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { getDisplayName } from '../../utilities';
+import { createComponentContext, getDisplayName } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Divider } from './divider';
 import { Icon, type IconProps } from './icon';
@@ -23,6 +23,21 @@ import { Text, type TextProps } from './text';
 
 type MenuVariant = 'baseline' | 'vertical';
 type MenuColorStyle = 'standard' | 'vibrant';
+
+type MenuCtx = {
+  variant: MenuVariant;
+  colorStyle: MenuColorStyle;
+};
+
+type MenuItemCtx = {
+  variant: MenuVariant;
+  colorStyle: MenuColorStyle;
+  selected: boolean;
+  disabled: boolean;
+};
+
+const [MenuProvider, useMenu] = createComponentContext<MenuCtx>('Menu');
+const [MenuItemProvider, useMenuItem] = createComponentContext<MenuItemCtx>('MenuItem');
 
 type MenuProps = {
   variant?: MenuVariant;
@@ -41,50 +56,25 @@ type MenuItemProps = {
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
-  __internal__menuVariant?: MenuVariant;
-  __internal__menuColorStyle?: MenuColorStyle;
 };
 
-type MenuItemLeadingIconProps = Omit<IconProps, 'size'> & {
-  __internal__menuVariant?: MenuVariant;
-  __internal__menuColorStyle?: MenuColorStyle;
-  __internal__menuItemDisabled?: boolean;
-  __internal__menuItemSelected?: boolean;
-};
+type MenuItemLeadingIconProps = Omit<IconProps, 'size'>;
 
 type MenuItemLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  __internal__menuVariant?: MenuVariant;
-  __internal__menuColorStyle?: MenuColorStyle;
-  __internal__menuItemDisabled?: boolean;
-  __internal__menuItemSelected?: boolean;
   children: React.ReactNode;
 };
 
-type MenuItemTrailingIconProps = Omit<IconProps, 'size'> & {
-  __internal__menuVariant?: MenuVariant;
-  __internal__menuColorStyle?: MenuColorStyle;
-  __internal__menuItemDisabled?: boolean;
-  __internal__menuItemSelected?: boolean;
-};
+type MenuItemTrailingIconProps = Omit<IconProps, 'size'>;
 
 type MenuItemTrailingTextProps = Omit<TextProps, 'variant' | 'size'> & {
-  __internal__menuVariant?: MenuVariant;
-  __internal__menuColorStyle?: MenuColorStyle;
-  __internal__menuItemDisabled?: boolean;
-  __internal__menuItemSelected?: boolean;
   children: React.ReactNode;
 };
 
 type MenuItemSupportingTextProps = Omit<TextProps, 'variant' | 'size'> & {
-  __internal__menuVariant?: MenuVariant;
-  __internal__menuColorStyle?: MenuColorStyle;
-  __internal__menuItemDisabled?: boolean;
-  __internal__menuItemSelected?: boolean;
   children: React.ReactNode;
 };
 
 type MenuDividerProps = {
-  __internal__menuVariant?: MenuVariant;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -275,6 +265,8 @@ function Menu({
     [anchorLayout, menuSize],
   );
 
+  const ctx = useMemo<MenuCtx>(() => ({ variant, colorStyle: effectiveColorStyle }), [variant, effectiveColorStyle]);
+
   return (
     <View ref={anchorRef as any} collapsable={false}>
       {anchor}
@@ -292,22 +284,7 @@ function Menu({
             style={[menuStyles.container, animatedContainerStyle, menuPosition, style]}
             accessibilityRole="menu"
           >
-            {React.Children.map(children, (child) => {
-              if (!React.isValidElement(child)) return child;
-              const name = getDisplayName(child);
-              if (name === MENU_ITEM) {
-                return React.cloneElement(child, {
-                  __internal__menuVariant: variant,
-                  __internal__menuColorStyle: effectiveColorStyle,
-                } as any);
-              }
-              if (name === MENU_DIVIDER) {
-                return React.cloneElement(child, {
-                  __internal__menuVariant: variant,
-                } as any);
-              }
-              return child;
-            })}
+            <MenuProvider value={ctx}>{children}</MenuProvider>
           </Animated.View>
         </Modal>
       )}
@@ -329,25 +306,14 @@ function getMenuItemStateLayerColor(
   return selected ? 'onTertiaryContainer' : 'onSurface';
 }
 
-function MenuItem({
-  selected = false,
-  disabled = false,
-  onPress,
-  style,
-  children,
-  __internal__menuVariant = 'baseline',
-  __internal__menuColorStyle = 'standard',
-}: MenuItemProps) {
-  menuStyles.useVariants({
-    variant: __internal__menuVariant,
-    colorStyle: __internal__menuColorStyle,
-    selected,
-    disabled,
-  });
+function MenuItem({ selected = false, disabled = false, onPress, style, children }: MenuItemProps) {
+  const { variant, colorStyle } = useMenu();
+
+  menuStyles.useVariants({ variant, colorStyle, selected, disabled });
 
   const { progress, handlers } = useInteraction('press', 'hover', 'focus');
 
-  const stateLayerColor = getMenuItemStateLayerColor(__internal__menuVariant, __internal__menuColorStyle, selected);
+  const stateLayerColor = getMenuItemStateLayerColor(variant, colorStyle, selected);
 
   const handlePress = React.useCallback(() => {
     if (disabled) return;
@@ -364,19 +330,12 @@ function MenuItem({
       if (!React.isValidElement(child)) return;
       const name = getDisplayName(child);
 
-      const cloned = React.cloneElement(child, {
-        __internal__menuVariant: __internal__menuVariant,
-        __internal__menuColorStyle: __internal__menuColorStyle,
-        __internal__menuItemDisabled: disabled,
-        __internal__menuItemSelected: selected,
-      } as any);
-
       if (name && LEADING_NAMES.has(name)) {
-        leading = cloned;
+        leading = child;
       } else if (name && TRAILING_NAMES.has(name)) {
-        trailing.push(cloned);
+        trailing.push(child);
       } else if (name && CONTENT_NAMES.has(name)) {
-        content.push(cloned);
+        content.push(child);
       }
     });
 
@@ -387,7 +346,12 @@ function MenuItem({
     });
 
     return { leadingSlot: leading, sortedContent: sorted, trailingSlots: trailing };
-  }, [children, __internal__menuVariant, __internal__menuColorStyle, disabled, selected]);
+  }, [children]);
+
+  const itemCtx = useMemo<MenuItemCtx>(
+    () => ({ variant, colorStyle, selected, disabled }),
+    [variant, colorStyle, selected, disabled],
+  );
 
   return (
     <RNPressable
@@ -398,12 +362,14 @@ function MenuItem({
       accessibilityState={{ selected, disabled }}
       {...handlers}
     >
-      <StateLayer progress={progress} color={stateLayerColor} />
-      <View style={menuStyles.menuItemInner}>
-        {leadingSlot}
-        <View style={menuStyles.contentSlot}>{sortedContent}</View>
-        {trailingSlots.length > 0 && <View style={menuStyles.trailingSlot}>{trailingSlots}</View>}
-      </View>
+      <MenuItemProvider value={itemCtx}>
+        <StateLayer progress={progress} color={stateLayerColor} />
+        <View style={menuStyles.menuItemInner}>
+          {leadingSlot}
+          <View style={menuStyles.contentSlot}>{sortedContent}</View>
+          {trailingSlots.length > 0 && <View style={menuStyles.trailingSlot}>{trailingSlots}</View>}
+        </View>
+      </MenuItemProvider>
     </RNPressable>
   );
 }
@@ -413,23 +379,10 @@ MenuItem.displayName = MENU_ITEM;
 // MenuItemLeadingIcon
 // =============================================================================
 
-function MenuItemLeadingIcon({
-  __internal__menuVariant = 'baseline',
-  __internal__menuColorStyle = 'standard',
-  __internal__menuItemDisabled = false,
-  __internal__menuItemSelected = false,
-  style,
-  ...props
-}: MenuItemLeadingIconProps) {
-  menuStyles.useVariants({
-    variant: __internal__menuVariant,
-    colorStyle: __internal__menuColorStyle,
-    disabled: __internal__menuItemDisabled,
-    selected: __internal__menuItemSelected,
-  });
-
-  const iconSize = __internal__menuVariant === 'baseline' ? BASELINE_ICON_SIZE : VERTICAL_ICON_SIZE;
-
+function MenuItemLeadingIcon({ style, ...props }: MenuItemLeadingIconProps) {
+  const { variant, colorStyle, disabled, selected } = useMenuItem();
+  menuStyles.useVariants({ variant, colorStyle, disabled, selected });
+  const iconSize = variant === 'baseline' ? BASELINE_ICON_SIZE : VERTICAL_ICON_SIZE;
   return <Icon size={iconSize} style={[menuStyles.leadingIcon, style]} {...props} />;
 }
 MenuItemLeadingIcon.displayName = MENU_ITEM_LEADING_ICON;
@@ -438,22 +391,9 @@ MenuItemLeadingIcon.displayName = MENU_ITEM_LEADING_ICON;
 // MenuItemLabel
 // =============================================================================
 
-function MenuItemLabel({
-  __internal__menuVariant = 'baseline',
-  __internal__menuColorStyle = 'standard',
-  __internal__menuItemDisabled = false,
-  __internal__menuItemSelected = false,
-  style,
-  children,
-  ...props
-}: MenuItemLabelProps) {
-  menuStyles.useVariants({
-    variant: __internal__menuVariant,
-    colorStyle: __internal__menuColorStyle,
-    disabled: __internal__menuItemDisabled,
-    selected: __internal__menuItemSelected,
-  });
-
+function MenuItemLabel({ style, children, ...props }: MenuItemLabelProps) {
+  const { variant, colorStyle, disabled, selected } = useMenuItem();
+  menuStyles.useVariants({ variant, colorStyle, disabled, selected });
   return (
     <Text variant="label" size="large" style={[menuStyles.labelText, style]} {...props}>
       {children}
@@ -466,23 +406,10 @@ MenuItemLabel.displayName = MENU_ITEM_LABEL;
 // MenuItemTrailingIcon
 // =============================================================================
 
-function MenuItemTrailingIcon({
-  __internal__menuVariant = 'baseline',
-  __internal__menuColorStyle = 'standard',
-  __internal__menuItemDisabled = false,
-  __internal__menuItemSelected = false,
-  style,
-  ...props
-}: MenuItemTrailingIconProps) {
-  menuStyles.useVariants({
-    variant: __internal__menuVariant,
-    colorStyle: __internal__menuColorStyle,
-    disabled: __internal__menuItemDisabled,
-    selected: __internal__menuItemSelected,
-  });
-
-  const iconSize = __internal__menuVariant === 'baseline' ? BASELINE_ICON_SIZE : VERTICAL_ICON_SIZE;
-
+function MenuItemTrailingIcon({ style, ...props }: MenuItemTrailingIconProps) {
+  const { variant, colorStyle, disabled, selected } = useMenuItem();
+  menuStyles.useVariants({ variant, colorStyle, disabled, selected });
+  const iconSize = variant === 'baseline' ? BASELINE_ICON_SIZE : VERTICAL_ICON_SIZE;
   return <Icon size={iconSize} style={[menuStyles.trailingIcon, style]} {...props} />;
 }
 MenuItemTrailingIcon.displayName = MENU_ITEM_TRAILING_ICON;
@@ -491,22 +418,9 @@ MenuItemTrailingIcon.displayName = MENU_ITEM_TRAILING_ICON;
 // MenuItemTrailingText
 // =============================================================================
 
-function MenuItemTrailingText({
-  __internal__menuVariant = 'baseline',
-  __internal__menuColorStyle = 'standard',
-  __internal__menuItemDisabled = false,
-  __internal__menuItemSelected = false,
-  style,
-  children,
-  ...props
-}: MenuItemTrailingTextProps) {
-  menuStyles.useVariants({
-    variant: __internal__menuVariant,
-    colorStyle: __internal__menuColorStyle,
-    disabled: __internal__menuItemDisabled,
-    selected: __internal__menuItemSelected,
-  });
-
+function MenuItemTrailingText({ style, children, ...props }: MenuItemTrailingTextProps) {
+  const { variant, colorStyle, disabled, selected } = useMenuItem();
+  menuStyles.useVariants({ variant, colorStyle, disabled, selected });
   return (
     <Text variant="label" size="large" style={[menuStyles.trailingText, style]} {...props}>
       {children}
@@ -519,22 +433,9 @@ MenuItemTrailingText.displayName = MENU_ITEM_TRAILING_TEXT;
 // MenuItemSupportingText
 // =============================================================================
 
-function MenuItemSupportingText({
-  __internal__menuVariant = 'baseline',
-  __internal__menuColorStyle = 'standard',
-  __internal__menuItemDisabled = false,
-  __internal__menuItemSelected = false,
-  style,
-  children,
-  ...props
-}: MenuItemSupportingTextProps) {
-  menuStyles.useVariants({
-    variant: __internal__menuVariant,
-    colorStyle: __internal__menuColorStyle,
-    disabled: __internal__menuItemDisabled,
-    selected: __internal__menuItemSelected,
-  });
-
+function MenuItemSupportingText({ style, children, ...props }: MenuItemSupportingTextProps) {
+  const { variant, colorStyle, disabled, selected } = useMenuItem();
+  menuStyles.useVariants({ variant, colorStyle, disabled, selected });
   return (
     <Text variant="body" size="small" style={[menuStyles.supportingText, style]} {...props}>
       {children}
@@ -547,9 +448,9 @@ MenuItemSupportingText.displayName = MENU_ITEM_SUPPORTING_TEXT;
 // MenuDivider
 // =============================================================================
 
-function MenuDivider({ __internal__menuVariant = 'baseline', style }: MenuDividerProps) {
-  menuStyles.useVariants({ variant: __internal__menuVariant });
-
+function MenuDivider({ style }: MenuDividerProps) {
+  const { variant } = useMenu();
+  menuStyles.useVariants({ variant });
   return <Divider style={[menuStyles.divider, style]} />;
 }
 MenuDivider.displayName = MENU_DIVIDER;

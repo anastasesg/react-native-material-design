@@ -4,7 +4,7 @@
 /// Guidelines: https://m3.material.io/components/lists/guidelines
 /// Accessibility: https://m3.material.io/components/lists/accessibility
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Image,
   type ImageSourcePropType,
@@ -18,10 +18,17 @@ import {
 import { StyleSheet } from 'react-native-unistyles';
 
 import { useInteraction } from '../../hooks';
-import { getDisplayName } from '../../utilities';
+import { createComponentContext, getDisplayName } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
+
+type ListItemCtx = {
+  selected: boolean;
+  disabled: boolean;
+};
+
+const [ListItemProvider, useListItem] = createComponentContext<ListItemCtx>('ListItem');
 
 // =============================================================================
 // Types
@@ -39,51 +46,33 @@ type ListItemProps = Omit<RNPressableProps, 'style' | 'children'> & {
 };
 
 type ListItemLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  __internal__listItemDisabled?: boolean;
-  __internal__listItemSelected?: boolean;
   children: React.ReactNode;
 };
 
 type ListItemSupportingTextProps = Omit<TextProps, 'variant' | 'size'> & {
-  __internal__listItemDisabled?: boolean;
-  __internal__listItemSelected?: boolean;
   children: React.ReactNode;
 };
 
 type ListItemOverlineProps = Omit<TextProps, 'variant' | 'size'> & {
-  __internal__listItemDisabled?: boolean;
-  __internal__listItemSelected?: boolean;
   children: React.ReactNode;
 };
 
 type ListItemTrailingTextProps = Omit<TextProps, 'variant' | 'size'> & {
-  __internal__listItemDisabled?: boolean;
-  __internal__listItemSelected?: boolean;
   children: React.ReactNode;
 };
 
-type ListItemLeadingIconProps = Omit<IconProps, 'size'> & {
-  __internal__listItemDisabled?: boolean;
-  __internal__listItemSelected?: boolean;
-};
+type ListItemLeadingIconProps = Omit<IconProps, 'size'>;
 
-type ListItemTrailingIconProps = Omit<IconProps, 'size'> & {
-  __internal__listItemDisabled?: boolean;
-  __internal__listItemSelected?: boolean;
-};
+type ListItemTrailingIconProps = Omit<IconProps, 'size'>;
 
 type ListItemLeadingAvatarProps = {
   label?: string;
-  __internal__listItemDisabled?: boolean;
-  __internal__listItemSelected?: boolean;
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 };
 
 type ListItemLeadingImageProps = {
   source: ImageSourcePropType;
-  __internal__listItemDisabled?: boolean;
-  __internal__listItemSelected?: boolean;
   style?: StyleProp<ImageStyle>;
 };
 
@@ -114,37 +103,6 @@ const CONTENT_SORT_ORDER = [LIST_ITEM_OVERLINE, LIST_ITEM_LABEL, LIST_ITEM_SUPPO
 // Helpers
 // =============================================================================
 
-/**
- * Determine the number of "lines" for height calculation.
- * - One-line (56dp): label only
- * - Two-line (72dp): label + one of (overline, supporting text, trailing text)
- * - Three-line (88dp): label + overline + supporting text, or label + 2-line supporting text
- */
-function computeLines(children: React.ReactNode): 1 | 2 | 3 {
-  let hasOverline = false;
-  let hasSupportingText = false;
-  let hasTrailingText = false;
-  let supportingTextLines = 1;
-
-  React.Children.forEach(children, (child) => {
-    if (!React.isValidElement(child)) return;
-    const name = getDisplayName(child);
-    if (name === LIST_ITEM_OVERLINE) hasOverline = true;
-    if (name === LIST_ITEM_SUPPORTING_TEXT) {
-      hasSupportingText = true;
-      if ((child.props as any).numberOfLines === 2) supportingTextLines = 2;
-    }
-    if (name === LIST_ITEM_TRAILING_TEXT) hasTrailingText = true;
-  });
-
-  const extraContentCount = (hasOverline ? 1 : 0) + (hasSupportingText ? 1 : 0);
-
-  if (extraContentCount >= 2) return 3;
-  if (hasSupportingText && supportingTextLines >= 2) return 3;
-  if (extraContentCount >= 1 || hasTrailingText) return 2;
-  return 1;
-}
-
 // =============================================================================
 // List (root container)
 // =============================================================================
@@ -158,42 +116,58 @@ function List({ style, children }: ListProps) {
 // =============================================================================
 
 function ListItem({ selected = false, style, children, disabled = false, ...props }: ListItemProps) {
-  const lines = computeLines(children);
+  // Single-pass: slot partition + line count, memoized by children
+  const { lines, leadingSlot, sortedContent, trailingSlots } = useMemo(() => {
+    let leading: React.ReactNode = null;
+    const content: React.ReactNode[] = [];
+    const trailing: React.ReactNode[] = [];
+    let hasOverline = false;
+    let hasSupportingText = false;
+    let hasTrailingText = false;
+    let supportingTextLines = 1;
+
+    React.Children.forEach(children, (child) => {
+      if (!React.isValidElement(child)) return;
+      const name = getDisplayName(child);
+
+      if (name && LEADING_NAMES.has(name)) leading = child;
+      else if (name && TRAILING_NAMES.has(name)) trailing.push(child);
+      else if (name && CONTENT_NAMES.has(name)) content.push(child);
+
+      if (name === LIST_ITEM_OVERLINE) hasOverline = true;
+      if (name === LIST_ITEM_SUPPORTING_TEXT) {
+        hasSupportingText = true;
+        if ((child.props as any).numberOfLines === 2) supportingTextLines = 2;
+      }
+      if (name === LIST_ITEM_TRAILING_TEXT) hasTrailingText = true;
+    });
+
+    const extraContentCount = (hasOverline ? 1 : 0) + (hasSupportingText ? 1 : 0);
+    const computedLines: 1 | 2 | 3 =
+      extraContentCount >= 2
+        ? 3
+        : hasSupportingText && supportingTextLines >= 2
+          ? 3
+          : extraContentCount >= 1 || hasTrailingText
+            ? 2
+            : 1;
+
+    content.sort((a, b) => {
+      const aName = React.isValidElement(a) ? getDisplayName(a) : '';
+      const bName = React.isValidElement(b) ? getDisplayName(b) : '';
+      return CONTENT_SORT_ORDER.indexOf(aName ?? '') - CONTENT_SORT_ORDER.indexOf(bName ?? '');
+    });
+
+    return { lines: computedLines, leadingSlot: leading, sortedContent: content, trailingSlots: trailing };
+  }, [children]);
+
   const isThreeLine = lines === 3;
 
   styles.useVariants({ selected, disabled, lines });
 
   const { progress, handlers } = useInteraction('press', 'hover', 'focus');
 
-  // Sort children into slots
-  let leadingSlot: React.ReactNode = null;
-  const contentSlots: React.ReactNode[] = [];
-  const trailingSlots: React.ReactNode[] = [];
-
-  React.Children.forEach(children, (child) => {
-    if (!React.isValidElement(child)) return;
-    const name = getDisplayName(child);
-
-    const cloned = React.cloneElement(child, {
-      __internal__listItemDisabled: disabled,
-      __internal__listItemSelected: selected,
-    } as any);
-
-    if (name && LEADING_NAMES.has(name)) {
-      leadingSlot = cloned;
-    } else if (name && TRAILING_NAMES.has(name)) {
-      trailingSlots.push(cloned);
-    } else if (name && CONTENT_NAMES.has(name)) {
-      contentSlots.push(cloned);
-    }
-  });
-
-  // Sort content: overline first, then label, then supporting text
-  const sortedContent = contentSlots.sort((a, b) => {
-    const aName = React.isValidElement(a) ? getDisplayName(a) : '';
-    const bName = React.isValidElement(b) ? getDisplayName(b) : '';
-    return CONTENT_SORT_ORDER.indexOf(aName ?? '') - CONTENT_SORT_ORDER.indexOf(bName ?? '');
-  });
+  const ctx = useMemo<ListItemCtx>(() => ({ selected, disabled }), [selected, disabled]);
 
   return (
     <RNPressable
@@ -204,15 +178,17 @@ function ListItem({ selected = false, style, children, disabled = false, ...prop
       {...handlers}
       {...props}
     >
-      {selected && disabled && <View style={styles.disabledSelectedOverlay} />}
-      <StateLayer progress={progress} color="onSurface" disabled={disabled} />
-      <View style={[styles.listItemInner, isThreeLine && styles.listItemInnerTop]}>
-        {leadingSlot && <View style={[styles.leadingSlot, isThreeLine && styles.leadingSlotTop]}>{leadingSlot}</View>}
-        <View style={styles.contentSlot}>{sortedContent}</View>
-        {trailingSlots.length > 0 && (
-          <View style={[styles.trailingSlot, isThreeLine && styles.trailingSlotTop]}>{trailingSlots}</View>
-        )}
-      </View>
+      <ListItemProvider value={ctx}>
+        {selected && disabled && <View style={styles.disabledSelectedOverlay} />}
+        <StateLayer progress={progress} color="onSurface" disabled={disabled} />
+        <View style={[styles.listItemInner, isThreeLine && styles.listItemInnerTop]}>
+          {leadingSlot && <View style={[styles.leadingSlot, isThreeLine && styles.leadingSlotTop]}>{leadingSlot}</View>}
+          <View style={styles.contentSlot}>{sortedContent}</View>
+          {trailingSlots.length > 0 && (
+            <View style={[styles.trailingSlot, isThreeLine && styles.trailingSlotTop]}>{trailingSlots}</View>
+          )}
+        </View>
+      </ListItemProvider>
     </RNPressable>
   );
 }
@@ -221,50 +197,30 @@ function ListItem({ selected = false, style, children, disabled = false, ...prop
 // Content sub-components
 // =============================================================================
 
-function ListItemLabel({
-  __internal__listItemDisabled = false,
-  __internal__listItemSelected = false,
-  style,
-  ...props
-}: ListItemLabelProps) {
-  styles.useVariants({ disabled: __internal__listItemDisabled, selected: __internal__listItemSelected });
-
+function ListItemLabel({ style, ...props }: ListItemLabelProps) {
+  const { disabled, selected } = useListItem();
+  styles.useVariants({ disabled, selected });
   return <Text variant="body" size="large" style={[styles.labelText, style]} {...props} />;
 }
 ListItemLabel.displayName = LIST_ITEM_LABEL;
 
-function ListItemSupportingText({
-  __internal__listItemDisabled = false,
-  __internal__listItemSelected = false,
-  style,
-  ...props
-}: ListItemSupportingTextProps) {
-  styles.useVariants({ disabled: __internal__listItemDisabled, selected: __internal__listItemSelected });
-
+function ListItemSupportingText({ style, ...props }: ListItemSupportingTextProps) {
+  const { disabled, selected } = useListItem();
+  styles.useVariants({ disabled, selected });
   return <Text variant="body" size="medium" style={[styles.supportingText, style]} {...props} />;
 }
 ListItemSupportingText.displayName = LIST_ITEM_SUPPORTING_TEXT;
 
-function ListItemOverline({
-  __internal__listItemDisabled = false,
-  __internal__listItemSelected = false,
-  style,
-  ...props
-}: ListItemOverlineProps) {
-  styles.useVariants({ disabled: __internal__listItemDisabled, selected: __internal__listItemSelected });
-
+function ListItemOverline({ style, ...props }: ListItemOverlineProps) {
+  const { disabled, selected } = useListItem();
+  styles.useVariants({ disabled, selected });
   return <Text variant="label" size="small" style={[styles.overlineText, style]} {...props} />;
 }
 ListItemOverline.displayName = LIST_ITEM_OVERLINE;
 
-function ListItemTrailingText({
-  __internal__listItemDisabled = false,
-  __internal__listItemSelected = false,
-  style,
-  ...props
-}: ListItemTrailingTextProps) {
-  styles.useVariants({ disabled: __internal__listItemDisabled, selected: __internal__listItemSelected });
-
+function ListItemTrailingText({ style, ...props }: ListItemTrailingTextProps) {
+  const { disabled, selected } = useListItem();
+  styles.useVariants({ disabled, selected });
   return <Text variant="label" size="small" style={[styles.trailingText, style]} {...props} />;
 }
 ListItemTrailingText.displayName = LIST_ITEM_TRAILING_TEXT;
@@ -273,14 +229,9 @@ ListItemTrailingText.displayName = LIST_ITEM_TRAILING_TEXT;
 // Leading sub-components
 // =============================================================================
 
-function ListItemLeadingIcon({
-  __internal__listItemDisabled = false,
-  __internal__listItemSelected = false,
-  style,
-  ...props
-}: ListItemLeadingIconProps) {
-  styles.useVariants({ disabled: __internal__listItemDisabled, selected: __internal__listItemSelected });
-
+function ListItemLeadingIcon({ style, ...props }: ListItemLeadingIconProps) {
+  const { disabled, selected } = useListItem();
+  styles.useVariants({ disabled, selected });
   return <Icon size={24} style={[styles.leadingIcon, style]} {...props} />;
 }
 ListItemLeadingIcon.displayName = LIST_ITEM_LEADING_ICON;
@@ -309,14 +260,9 @@ ListItemLeadingImage.displayName = LIST_ITEM_LEADING_IMAGE;
 // Trailing sub-components
 // =============================================================================
 
-function ListItemTrailingIcon({
-  __internal__listItemDisabled = false,
-  __internal__listItemSelected = false,
-  style,
-  ...props
-}: ListItemTrailingIconProps) {
-  styles.useVariants({ disabled: __internal__listItemDisabled, selected: __internal__listItemSelected });
-
+function ListItemTrailingIcon({ style, ...props }: ListItemTrailingIconProps) {
+  const { disabled, selected } = useListItem();
+  styles.useVariants({ disabled, selected });
   return <Icon size={24} style={[styles.trailingIcon, style]} {...props} />;
 }
 ListItemTrailingIcon.displayName = LIST_ITEM_TRAILING_ICON;

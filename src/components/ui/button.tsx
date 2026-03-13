@@ -4,7 +4,7 @@
 /// Guidelines: https://m3.material.io/components/buttons/guidelines
 /// Accessibility: https://m3.material.io/components/buttons/accessibility
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   type GestureResponderEvent,
   Pressable as RNPressable,
@@ -17,10 +17,21 @@ import { StyleSheet } from 'react-native-unistyles';
 import type { Scheme } from '@/theme/scheme';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
+import { useButtonGroupItem } from './button-group';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps, type TextSize, type TextVariant } from './text';
+
+type ButtonCtx = {
+  size: ButtonSize;
+  shape: ButtonShape;
+  variant: ButtonVariant;
+  selection: ButtonSelection;
+  disabled: boolean;
+};
+
+const [ButtonProvider, useButton] = createComponentContext<ButtonCtx>('Button');
 
 function getRestShapeToken(size: ButtonSize, shape: ButtonShape, selection: ButtonSelection): ShapeToken {
   const isSelected = selection === 'selected';
@@ -73,9 +84,6 @@ type ButtonProps = Omit<RNPressableProps, 'style' | 'children'> & {
   defaultSelected?: boolean;
   onSelectedChange?: (selected: boolean) => void;
 
-  /** @internal Used by ButtonGroup connected variant to suppress Button's own corner animation. */
-  __internal__suppressCornerAnimation?: boolean;
-
   style?: StyleProp<ViewStyle>;
   containerStyle?: StyleProp<ViewStyle>;
 };
@@ -88,7 +96,6 @@ function Button({
   selected: selectedProp,
   defaultSelected,
   onSelectedChange,
-  __internal__suppressCornerAnimation = false,
   style,
   containerStyle,
   children,
@@ -107,7 +114,8 @@ function Button({
 
   const { progress, handlers } = useInteraction('press', 'hover', 'focus');
 
-  const suppressCorner = __internal__suppressCornerAnimation;
+  const groupItem = useButtonGroupItem();
+  const suppressCorner = groupItem?.suppressCornerAnimation ?? false;
   const restShape = getRestShapeToken(size, shape, selection);
   const pressedShape = suppressCorner ? undefined : getPressedShapeToken(size);
 
@@ -121,6 +129,11 @@ function Button({
     onPress?.(e);
   }, [disabled, toggle, setSelected, onPress]);
 
+  const ctx = useMemo<ButtonCtx>(
+    () => ({ size, shape, variant, selection, disabled }),
+    [size, shape, variant, selection, disabled],
+  );
+
   return (
     <RNPressable style={[styles.root, style]} onPress={handlePress} disabled={disabled} {...handlers} {...props}>
       <ShapeContainer
@@ -130,113 +143,57 @@ function Button({
         style={[styles.container, containerStyle]}
       >
         <StateLayer progress={progress} color={stateLayerColor} disabled={disabled} />
-        {React.Children.map(children, (child) => {
-          if (!React.isValidElement(child)) return child;
-
-          const internal = {
-            __internal__buttonSize: size,
-            __internal__buttonShape: shape,
-            __internal__buttonVariant: variant,
-            __internal__buttonSelection: selection,
-            __internal__buttonDisabled: disabled,
-          };
-
-          if (isButtonIcon(child)) return React.cloneElement(child, internal);
-          if (isButtonLabel(child)) return React.cloneElement(child, internal);
-
-          warnUnexpectedChild('Button', child, BUTTON_CHILDREN);
-          return child;
-        })}
+        <ButtonProvider value={ctx}>{children}</ButtonProvider>
       </ShapeContainer>
     </RNPressable>
   );
 }
 
-const isButtonIcon = childGuard<ButtonIconProps>('ButtonIcon');
-const isButtonLabel = childGuard<ButtonLabelProps>('ButtonLabel');
-const BUTTON_CHILDREN = ['ButtonIcon', 'ButtonLabel'];
+type ButtonIconProps = IconProps;
 
-type ButtonIconProps = IconProps & {
-  __internal__buttonSize?: ButtonSize;
-  __internal__buttonShape?: ButtonShape;
-  __internal__buttonVariant?: ButtonVariant;
-  __internal__buttonSelection?: ButtonSelection;
-  __internal__buttonDisabled?: boolean;
-};
+function ButtonIcon({ style, ...props }: ButtonIconProps) {
+  const { size: buttonSize, shape, variant, selection, disabled } = useButton();
 
-function ButtonIcon({
-  __internal__buttonSize = 'small',
-  __internal__buttonShape = 'rounded',
-  __internal__buttonVariant = 'filled',
-  __internal__buttonSelection = 'none',
-  __internal__buttonDisabled = false,
-  style,
-  ...props
-}: ButtonIconProps) {
-  styles.useVariants({
-    variant: __internal__buttonVariant,
-    size: __internal__buttonSize,
-    shape: __internal__buttonShape,
-    selection: __internal__buttonSelection,
-    disabled: __internal__buttonDisabled,
-  });
+  styles.useVariants({ variant, size: buttonSize, shape, selection, disabled });
 
-  const size: number = React.useMemo(() => {
-    if (__internal__buttonSize === 'xsmall') return 20;
-    if (__internal__buttonSize === 'small') return 20;
-    if (__internal__buttonSize === 'medium') return 24;
-    if (__internal__buttonSize === 'large') return 32;
-    if (__internal__buttonSize === 'xlarge') return 40;
+  const iconSize: number = useMemo(() => {
+    if (buttonSize === 'xsmall') return 20;
+    if (buttonSize === 'small') return 20;
+    if (buttonSize === 'medium') return 24;
+    if (buttonSize === 'large') return 32;
+    if (buttonSize === 'xlarge') return 40;
     return 20;
-  }, [__internal__buttonSize]);
+  }, [buttonSize]);
 
-  return <Icon size={size} style={[styles.label, style]} {...props} />;
+  return <Icon size={iconSize} style={[styles.label, style]} {...props} />;
 }
 
-type ButtonLabelProps = TextProps & {
-  __internal__buttonSize?: ButtonSize;
-  __internal__buttonShape?: ButtonShape;
-  __internal__buttonVariant?: ButtonVariant;
-  __internal__buttonSelection?: ButtonSelection;
-  __internal__buttonDisabled?: boolean;
-};
+type ButtonLabelProps = TextProps;
 
-function ButtonLabel({
-  style,
-  __internal__buttonSize = 'small',
-  __internal__buttonShape = 'rounded',
-  __internal__buttonVariant = 'filled',
-  __internal__buttonSelection = 'none',
-  __internal__buttonDisabled = false,
-  ...props
-}: ButtonLabelProps) {
-  styles.useVariants({
-    variant: __internal__buttonVariant,
-    size: __internal__buttonSize,
-    shape: __internal__buttonShape,
-    selection: __internal__buttonSelection,
-    disabled: __internal__buttonDisabled,
-  });
+function ButtonLabel({ style, ...props }: ButtonLabelProps) {
+  const { size: buttonSize, shape, variant, selection, disabled } = useButton();
 
-  const variant: TextVariant = React.useMemo(() => {
-    if (__internal__buttonSize === 'xsmall') return 'label';
-    if (__internal__buttonSize === 'small') return 'label';
-    if (__internal__buttonSize === 'medium') return 'title';
-    if (__internal__buttonSize === 'large') return 'headline';
-    if (__internal__buttonSize === 'xlarge') return 'headline';
+  styles.useVariants({ variant, size: buttonSize, shape, selection, disabled });
+
+  const textVariant: TextVariant = useMemo(() => {
+    if (buttonSize === 'xsmall') return 'label';
+    if (buttonSize === 'small') return 'label';
+    if (buttonSize === 'medium') return 'title';
+    if (buttonSize === 'large') return 'headline';
+    if (buttonSize === 'xlarge') return 'headline';
     return 'label';
-  }, [__internal__buttonSize]);
+  }, [buttonSize]);
 
-  const size: TextSize = React.useMemo(() => {
-    if (__internal__buttonSize === 'xsmall') return 'large';
-    if (__internal__buttonSize === 'small') return 'large';
-    if (__internal__buttonSize === 'medium') return 'medium';
-    if (__internal__buttonSize === 'large') return 'small';
-    if (__internal__buttonSize === 'xlarge') return 'large';
+  const textSize: TextSize = useMemo(() => {
+    if (buttonSize === 'xsmall') return 'large';
+    if (buttonSize === 'small') return 'large';
+    if (buttonSize === 'medium') return 'medium';
+    if (buttonSize === 'large') return 'small';
+    if (buttonSize === 'xlarge') return 'large';
     return 'large';
-  }, [__internal__buttonSize]);
+  }, [buttonSize]);
 
-  return <Text style={[styles.label, style]} variant={variant} size={size} {...props} />;
+  return <Text style={[styles.label, style]} variant={textVariant} size={textSize} {...props} />;
 }
 
 // ---------------------------------------------------------------------------

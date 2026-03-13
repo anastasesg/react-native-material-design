@@ -10,7 +10,17 @@ import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 import { useInteraction } from '../../hooks';
+import { createComponentContext, createOptionalComponentContext } from '../../utilities';
 import { type PerCornerShape, ShapeContainer, type ShapeCorner, type ShapeToken } from '../custom';
+
+// =============================================================================
+// Cross-component context: consumed by Button / IconButton to suppress corners
+// =============================================================================
+
+type ButtonGroupItemCtx = { suppressCornerAnimation: boolean };
+
+const [ButtonGroupItemProvider, useButtonGroupItem] =
+  createOptionalComponentContext<ButtonGroupItemCtx>('ButtonGroupItem');
 
 // =============================================================================
 // Types
@@ -105,8 +115,7 @@ type ButtonGroupContextValue = {
     toggle: (index: number) => void;
   } | null;
 };
-
-const ButtonGroupContext = React.createContext<ButtonGroupContextValue | null>(null);
+const [ButtonGroupProvider, useButtonGroupContext] = createComponentContext<ButtonGroupContextValue>('ButtonGroup');
 
 // =============================================================================
 // Position helper
@@ -177,7 +186,7 @@ function ButtonGroup({
   const gap = variant === 'connected' ? CONNECTED_GAP : STANDARD_GAP[size];
 
   return (
-    <ButtonGroupContext.Provider value={ctx}>
+    <ButtonGroupProvider value={ctx}>
       <View
         style={[groupStyles.root, { gap }, variant === 'standard' && groupStyles.standardRoot, style]}
         accessibilityRole="toolbar"
@@ -192,7 +201,7 @@ function ButtonGroup({
           return <StandardItem key={index} index={index} child={child as React.ReactElement<any>} />;
         })}
       </View>
-    </ButtonGroupContext.Provider>
+    </ButtonGroupProvider>
   );
 }
 
@@ -209,12 +218,14 @@ function ConnectedItem({
   position: ItemPosition;
   child: React.ReactElement<any>;
 }) {
-  const ctx = React.useContext(ButtonGroupContext)!;
+  const ctx = useButtonGroupContext();
   const { size, shape, disabled: groupDisabled, selection } = ctx;
 
   // If group manages selection, derive from context; otherwise read from child props
   const isSelected = selection ? selection.indices.includes(index) : !!child.props.selected;
   const isDisabled = groupDisabled || !!child.props.disabled;
+
+  const suppressCtx = React.useMemo<ButtonGroupItemCtx>(() => ({ suppressCornerAnimation: true }), []);
 
   // Detect outlined variant for border treatment on the wrapper
   const childVariant: string = child.props.variant ?? 'filled';
@@ -276,7 +287,6 @@ function ConnectedItem({
   const cloneProps: Record<string, any> = {
     size: child.props.size ?? size,
     disabled: isDisabled,
-    __internal__suppressCornerAnimation: true,
     onPressIn: handlePressIn,
     onPressOut: handlePressOut,
     style: [child.props.style, groupStyles.connectedChildRoot],
@@ -303,7 +313,9 @@ function ConnectedItem({
         isOutlined && [groupStyles.connectedOutlinedBorder, { borderWidth }],
       ]}
     >
-      {React.cloneElement(child, cloneProps as any)}
+      <ButtonGroupItemProvider value={suppressCtx}>
+        {React.cloneElement(child, cloneProps as any)}
+      </ButtonGroupItemProvider>
     </ShapeContainer>
   );
 }
@@ -313,8 +325,8 @@ function ConnectedItem({
 // =============================================================================
 
 function StandardItem({ child }: { index: number; child: React.ReactElement<any> }) {
-  const ctx = React.useContext(ButtonGroupContext)!;
-  const { size, shape, disabled: groupDisabled } = ctx;
+  const ctx = useButtonGroupContext();
+  const { size, shape, disabled: groupDisabled } = ctx ?? {};
 
   const isDisabled = groupDisabled || !!child.props.disabled;
 
@@ -378,4 +390,4 @@ const groupStyles = StyleSheet.create((theme) => ({
 ButtonGroup.displayName = 'ButtonGroup';
 
 export type { ButtonGroupProps, ButtonGroupSelectionMode, ButtonGroupShape, ButtonGroupSize, ButtonGroupVariant };
-export { ButtonGroup };
+export { ButtonGroup, useButtonGroupItem };

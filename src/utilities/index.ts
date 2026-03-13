@@ -1,4 +1,5 @@
 export * from './children';
+export * from './create-component-context';
 export * from './generate-pallette';
 export * from './generate-pallettes';
 export * from './generate-scheme';

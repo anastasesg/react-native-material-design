@@ -4,7 +4,7 @@
 /// Guidelines: https://m3.material.io/components/chips/guidelines
 /// Accessibility: https://m3.material.io/components/chips/accessibility
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   type GestureResponderEvent,
   Image,
@@ -20,7 +20,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import type { Scheme } from '@/theme/scheme';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { ShapeContainer, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
@@ -39,6 +39,15 @@ function getChipStateLayerColor(type: ChipType, selected: boolean): keyof Scheme
   return 'onSurfaceVariant'; // suggestion
 }
 
+type ChipCtx = {
+  type: ChipType;
+  elevation: ChipElevation;
+  selected: boolean;
+  disabled: boolean;
+};
+
+const [ChipProvider, useChip] = createComponentContext<ChipCtx>('Chip');
+
 type ChipProps = Omit<RNPressableProps, 'style' | 'children'> & {
   type?: ChipType;
   elevation?: ChipElevation;
@@ -55,11 +64,6 @@ type ChipProps = Omit<RNPressableProps, 'style' | 'children'> & {
   containerStyle?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 };
-
-const isChipIcon = childGuard<ChipIconProps>('ChipIcon');
-const isChipLabel = childGuard<ChipLabelProps>('ChipLabel');
-const isChipTrailingIcon = childGuard<ChipTrailingIconProps>('ChipTrailingIcon');
-const CHIP_CHILDREN = ['ChipIcon', 'ChipLabel', 'ChipTrailingIcon'];
 
 // =============================================================================
 // Main Component
@@ -125,6 +129,8 @@ function Chip({
     onPress?.(e);
   }, [disabled, isSelectable, setSelectedState, onPress]);
 
+  const ctx = useMemo<ChipCtx>(() => ({ type, elevation, selected, disabled }), [type, elevation, selected, disabled]);
+
   return (
     <RNPressable
       style={[styles.root, style]}
@@ -157,23 +163,7 @@ function Chip({
         {/* Filter chip checkmark when selected */}
         {showCheckmark && <Icon name="check" size={18} style={styles.leadingIcon} />}
 
-        {React.Children.map(children, (child) => {
-          if (!React.isValidElement(child)) return child;
-
-          const internal = {
-            __internal__chipType: type,
-            __internal__chipElevation: elevation,
-            __internal__chipSelected: selected,
-            __internal__chipDisabled: disabled,
-          };
-
-          if (isChipIcon(child)) return React.cloneElement(child, internal);
-          if (isChipLabel(child)) return React.cloneElement(child, internal);
-          if (isChipTrailingIcon(child)) return React.cloneElement(child, internal);
-
-          warnUnexpectedChild('Chip', child, CHIP_CHILDREN);
-          return child;
-        })}
+        <ChipProvider value={ctx}>{children}</ChipProvider>
 
         {/* Disabled overlays: border-only for flat+unselected, fill for elevated/selected */}
         {disabled && elevation === 'flat' && !selected && <View style={styles.disabledBorder} />}
@@ -189,78 +179,27 @@ function Chip({
 // Sub-components
 // =============================================================================
 
-type ChipIconProps = IconProps & {
-  __internal__chipType?: ChipType;
-  __internal__chipElevation?: ChipElevation;
-  __internal__chipSelected?: boolean;
-  __internal__chipDisabled?: boolean;
-};
+type ChipIconProps = IconProps;
 
-function ChipIcon({
-  __internal__chipType = 'assist',
-  __internal__chipElevation = 'flat',
-  __internal__chipSelected = false,
-  __internal__chipDisabled = false,
-  style,
-  ...props
-}: ChipIconProps) {
-  styles.useVariants({
-    type: __internal__chipType,
-    elevation: __internal__chipElevation,
-    selected: __internal__chipSelected,
-    disabled: __internal__chipDisabled,
-  });
-
+function ChipIcon({ style, ...props }: ChipIconProps) {
+  const { type, elevation, selected, disabled } = useChip();
+  styles.useVariants({ type, elevation, selected, disabled });
   return <Icon size={18} style={[styles.leadingIcon, style]} {...props} />;
 }
 
-type ChipLabelProps = TextProps & {
-  __internal__chipType?: ChipType;
-  __internal__chipElevation?: ChipElevation;
-  __internal__chipSelected?: boolean;
-  __internal__chipDisabled?: boolean;
-};
+type ChipLabelProps = TextProps;
 
-function ChipLabel({
-  __internal__chipType = 'assist',
-  __internal__chipElevation = 'flat',
-  __internal__chipSelected = false,
-  __internal__chipDisabled = false,
-  style,
-  ...props
-}: ChipLabelProps) {
-  styles.useVariants({
-    type: __internal__chipType,
-    elevation: __internal__chipElevation,
-    selected: __internal__chipSelected,
-    disabled: __internal__chipDisabled,
-  });
-
+function ChipLabel({ style, ...props }: ChipLabelProps) {
+  const { type, elevation, selected, disabled } = useChip();
+  styles.useVariants({ type, elevation, selected, disabled });
   return <Text variant="label" size="large" style={[styles.label, style]} {...props} />;
 }
 
-type ChipTrailingIconProps = IconProps & {
-  __internal__chipType?: ChipType;
-  __internal__chipElevation?: ChipElevation;
-  __internal__chipSelected?: boolean;
-  __internal__chipDisabled?: boolean;
-};
+type ChipTrailingIconProps = IconProps;
 
-function ChipTrailingIcon({
-  __internal__chipType = 'filter',
-  __internal__chipElevation = 'flat',
-  __internal__chipSelected = false,
-  __internal__chipDisabled = false,
-  style,
-  ...props
-}: ChipTrailingIconProps) {
-  styles.useVariants({
-    type: __internal__chipType,
-    elevation: __internal__chipElevation,
-    selected: __internal__chipSelected,
-    disabled: __internal__chipDisabled,
-  });
-
+function ChipTrailingIcon({ style, ...props }: ChipTrailingIconProps) {
+  const { type, elevation, selected, disabled } = useChip();
+  styles.useVariants({ type, elevation, selected, disabled });
   return <Icon size={18} style={[styles.trailingIcon, style]} {...props} />;
 }
 

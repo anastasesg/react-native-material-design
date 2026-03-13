@@ -100,6 +100,8 @@ type DrawerContextValue = {
   close: () => void;
   toggle: () => void;
   isOpen: boolean;
+  /** Label of the currently focused screen. */
+  focusedLabel: string;
 };
 
 const DrawerContext = React.createContext<DrawerContextValue | null>(null);
@@ -118,29 +120,26 @@ function useDrawer(): DrawerContextValue {
 
 const DRAWER_APPBAR = 'DrawerAppbar';
 
-type InternalDrawerAppbarProps = {
-  __internal__onMenuPress?: () => void;
-  __internal__title?: string;
-};
+type DrawerAppbarProps = AppbarHeaderProps;
 
-type DrawerAppbarProps = AppbarHeaderProps & InternalDrawerAppbarProps;
+function DrawerAppbar({ children, ...props }: DrawerAppbarProps) {
+  const { toggle, focusedLabel } = useDrawer();
 
-function DrawerAppbar({ __internal__onMenuPress, __internal__title, children, ...props }: DrawerAppbarProps) {
   const enhancedChildren = React.Children.map(children, (child) => {
     if (!React.isValidElement(child)) return child;
     const displayName = getDisplayName(child);
 
     // Auto-wire menu action: AppbarAction with name="menu" gets onPress
     if (displayName === 'AppbarAction' && (child.props as any).name === 'menu') {
-      if (!(child.props as any).onPress && __internal__onMenuPress) {
-        return React.cloneElement(child, { onPress: __internal__onMenuPress } as any);
+      if (!(child.props as any).onPress) {
+        return React.cloneElement(child, { onPress: toggle } as any);
       }
     }
 
     // Auto-wire title: AppbarTitle without explicit title gets the screen label
     if (displayName === 'AppbarTitle') {
-      if (!(child.props as any).title && __internal__title) {
-        return React.cloneElement(child, { title: __internal__title } as any);
+      if (!(child.props as any).title) {
+        return React.cloneElement(child, { title: focusedLabel } as any);
       }
     }
 
@@ -192,6 +191,10 @@ function DrawerNavigator({
     });
   }, [navigation, state.routes, state.index]);
 
+  const focusedRoute = state.routes[state.index]!;
+  const focusedDescriptor = descriptors[focusedRoute.key]!;
+  const focusedLabel = focusedDescriptor.options.drawerLabel ?? focusedRoute.name;
+
   const drawerCtx = React.useMemo<DrawerContextValue>(
     () => ({
       open: () => handleOpenChange(true),
@@ -206,21 +209,11 @@ function DrawerNavigator({
           return next;
         }),
       isOpen: drawerOpen,
+      focusedLabel,
     }),
-    [drawerOpen, handleOpenChange, navigation, state.routes, state.index],
+
+    [drawerOpen, handleOpenChange, navigation, state.routes, state.index, focusedLabel],
   );
-
-  const focusedRoute = state.routes[state.index]!;
-  const focusedDescriptor = descriptors[focusedRoute.key]!;
-  const focusedLabel = focusedDescriptor.options.drawerLabel ?? focusedRoute.name;
-
-  // Clone appbar with __internal__ props
-  const renderedAppbar = appbar
-    ? React.cloneElement(appbar, {
-        __internal__onMenuPress: drawerCtx.toggle,
-        __internal__title: focusedLabel,
-      } as any)
-    : null;
 
   // Group routes by drawerSection (consecutive items with the same section are grouped)
   type RouteEntry = TabNavigationState<ParamListBase>['routes'][number];
@@ -243,7 +236,7 @@ function DrawerNavigator({
     <DrawerContext.Provider value={drawerCtx}>
       <NavigationContent>
         <View style={styles.container}>
-          {renderedAppbar}
+          {appbar}
           <View style={styles.content}>{focusedDescriptor.render()}</View>
         </View>
 

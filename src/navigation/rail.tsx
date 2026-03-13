@@ -105,6 +105,8 @@ type RailContextValue = {
   collapse: () => void;
   toggle: () => void;
   isExpanded: boolean;
+  /** Label of the currently focused screen. */
+  focusedLabel: string;
 };
 
 const RailContext = React.createContext<RailContextValue | null>(null);
@@ -123,21 +125,19 @@ function useRail(): RailContextValue {
 
 const RAIL_APPBAR = 'RailAppbar';
 
-type InternalRailAppbarProps = {
-  __internal__title?: string;
-};
+type RailAppbarProps = AppbarHeaderProps;
 
-type RailAppbarProps = AppbarHeaderProps & InternalRailAppbarProps;
+function RailAppbar({ children, ...props }: RailAppbarProps) {
+  const { focusedLabel } = useRail();
 
-function RailAppbar({ __internal__title, children, ...props }: RailAppbarProps) {
   const enhancedChildren = React.Children.map(children, (child) => {
     if (!React.isValidElement(child)) return child;
     const displayName = getDisplayName(child);
 
     // Auto-wire title: AppbarTitle without explicit title gets the screen label
     if (displayName === 'AppbarTitle') {
-      if (!(child.props as any).title && __internal__title) {
-        return React.cloneElement(child, { title: __internal__title } as any);
+      if (!(child.props as any).title) {
+        return React.cloneElement(child, { title: focusedLabel } as any);
       }
     }
 
@@ -192,6 +192,10 @@ function RailNavigator({
     });
   }, [navigation, state.routes, state.index]);
 
+  const focusedRoute = state.routes[state.index]!;
+  const focusedDescriptor = descriptors[focusedRoute.key]!;
+  const focusedLabel = focusedDescriptor.options.railLabel ?? focusedRoute.name;
+
   const railCtx = React.useMemo<RailContextValue>(
     () => ({
       expand: () => handleExpandedChange(true),
@@ -206,20 +210,11 @@ function RailNavigator({
           return next;
         }),
       isExpanded: railExpanded,
+      focusedLabel,
     }),
-    [railExpanded, handleExpandedChange, navigation, state.routes, state.index],
+
+    [railExpanded, handleExpandedChange, navigation, state.routes, state.index, focusedLabel],
   );
-
-  const focusedRoute = state.routes[state.index]!;
-  const focusedDescriptor = descriptors[focusedRoute.key]!;
-  const focusedLabel = focusedDescriptor.options.railLabel ?? focusedRoute.name;
-
-  // Clone appbar with __internal__ props
-  const renderedAppbar = appbar
-    ? React.cloneElement(appbar, {
-        __internal__title: focusedLabel,
-      } as any)
-    : null;
 
   // Group routes by railSection
   type RouteEntry = TabNavigationState<ParamListBase>['routes'][number];
@@ -288,7 +283,7 @@ function RailNavigator({
 
           {/* Content area */}
           <View style={styles.content}>
-            {renderedAppbar}
+            {appbar}
             <View style={styles.content}>{focusedDescriptor.render()}</View>
           </View>
         </View>

@@ -11,7 +11,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import { useControllableState } from '../../hooks';
-import { getDisplayName } from '../../utilities';
+import { createComponentContext, getDisplayName } from '../../utilities';
 import { Button, ButtonLabel } from './button';
 import { Divider } from './divider';
 import { Icon, type MaterialSymbol } from './icon';
@@ -38,36 +38,37 @@ type DialogProps = {
 
 type DialogIconProps = {
   name: MaterialSymbol;
-  __internal__variant?: DialogVariant;
 };
 
 type DialogHeadlineProps = Omit<TextProps, 'variant' | 'size'> & {
-  __internal__variant?: DialogVariant;
-  __internal__hasIcon?: boolean;
   children: React.ReactNode;
 };
 
 type DialogContentProps = {
-  __internal__variant?: DialogVariant;
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 };
 
-type DialogDividerProps = {
-  __internal__variant?: DialogVariant;
-};
-
 type DialogActionsProps = {
-  __internal__variant?: DialogVariant;
   children?: React.ReactNode;
 };
 
 type DialogActionProps = {
   onPress?: () => void;
   disabled?: boolean;
-  __internal__variant?: DialogVariant;
   children: React.ReactNode;
 };
+
+// =============================================================================
+// Context
+// =============================================================================
+
+type DialogContextValue = {
+  variant: DialogVariant;
+  hasIcon: boolean;
+};
+
+const [DialogProvider, useDialog] = createComponentContext<DialogContextValue>('Dialog');
 
 // =============================================================================
 // Constants
@@ -158,6 +159,18 @@ function Dialog({
     onDismiss?.();
   }, [setOpen, onDismiss]);
 
+  const hasIcon = React.useMemo(
+    () =>
+      React.Children.toArray(children).some(
+        (child) => React.isValidElement(child) && getDisplayName(child) === DIALOG_ICON,
+      ),
+    [children],
+  );
+
+  const ctx = React.useMemo<DialogContextValue>(() => ({ variant, hasIcon }), [variant, hasIcon]);
+
+  dialogStyles.useVariants({ variant });
+
   if (!mounted) return null;
 
   // Sort children into slots
@@ -169,43 +182,34 @@ function Dialog({
   // Full-screen: first DialogAction found goes in header
   let headerActionSlot: React.ReactNode = null;
 
-  const hasIcon = React.Children.toArray(children).some(
-    (child) => React.isValidElement(child) && getDisplayName(child) === DIALOG_ICON,
-  );
-
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
     const name = getDisplayName(child);
 
     switch (name) {
       case DIALOG_ICON:
-        iconSlot = React.cloneElement(child, { __internal__variant: variant } as any);
+        iconSlot = child;
         break;
       case DIALOG_HEADLINE:
-        headlineSlot = React.cloneElement(child, {
-          __internal__variant: variant,
-          __internal__hasIcon: hasIcon,
-        } as any);
+        headlineSlot = child;
         break;
       case DIALOG_CONTENT:
-        contentSlot = React.cloneElement(child, { __internal__variant: variant } as any);
+        contentSlot = child;
         break;
       case DIALOG_DIVIDER:
-        dividerSlot = React.cloneElement(child, { __internal__variant: variant } as any);
+        dividerSlot = child;
         break;
       case DIALOG_ACTIONS:
-        actionsSlot = React.cloneElement(child, { __internal__variant: variant } as any);
+        actionsSlot = child;
         break;
       case DIALOG_ACTION:
         // Bare DialogAction (not inside DialogActions) — used in full-screen header
         if (variant === 'full-screen' && !headerActionSlot) {
-          headerActionSlot = React.cloneElement(child, { __internal__variant: variant } as any);
+          headerActionSlot = child;
         }
         break;
     }
   });
-
-  dialogStyles.useVariants({ variant });
 
   if (variant === 'full-screen') {
     return (
@@ -220,15 +224,17 @@ function Dialog({
         </RNPressable>
 
         <Animated.View style={[dialogStyles.anchor, animatedFullScreenStyle]}>
-          <View style={[dialogStyles.container, style]}>
-            <View style={dialogStyles.header}>
-              <IconButton name="close" onPress={handleDismiss} />
-              {headlineSlot}
-              {headerActionSlot}
+          <DialogProvider value={ctx}>
+            <View style={[dialogStyles.container, style]}>
+              <View style={dialogStyles.header}>
+                <IconButton name="close" onPress={handleDismiss} />
+                {headlineSlot}
+                {headerActionSlot}
+              </View>
+              {dividerSlot}
+              {contentSlot}
             </View>
-            {dividerSlot}
-            {contentSlot}
-          </View>
+          </DialogProvider>
         </Animated.View>
       </Modal>
     );
@@ -247,11 +253,13 @@ function Dialog({
 
       <View style={dialogStyles.anchor} pointerEvents="box-none">
         <Animated.View style={[dialogStyles.container, animatedBasicStyle, style]} accessibilityRole="alert">
-          {iconSlot}
-          {headlineSlot}
-          {contentSlot}
-          {dividerSlot}
-          {actionsSlot}
+          <DialogProvider value={ctx}>
+            {iconSlot}
+            {headlineSlot}
+            {contentSlot}
+            {dividerSlot}
+            {actionsSlot}
+          </DialogProvider>
         </Animated.View>
       </View>
     </Modal>
@@ -262,7 +270,7 @@ function Dialog({
 // DialogIcon
 // =============================================================================
 
-function DialogIcon({ name, __internal__variant: _variant }: DialogIconProps) {
+function DialogIcon({ name }: DialogIconProps) {
   return (
     <View style={dialogStyles.iconContainer}>
       <Icon name={name} size={ICON_SIZE} style={dialogStyles.icon} />
@@ -275,15 +283,10 @@ DialogIcon.displayName = DIALOG_ICON;
 // DialogHeadline
 // =============================================================================
 
-function DialogHeadline({
-  __internal__variant = 'basic',
-  __internal__hasIcon = false,
-  style,
-  children,
-  ...props
-}: DialogHeadlineProps) {
-  const isFullScreen = __internal__variant === 'full-screen';
-  dialogStyles.useVariants({ variant: __internal__variant, hasIcon: __internal__hasIcon });
+function DialogHeadline({ style, children, ...props }: DialogHeadlineProps) {
+  const { variant, hasIcon } = useDialog();
+  const isFullScreen = variant === 'full-screen';
+  dialogStyles.useVariants({ variant, hasIcon });
 
   return (
     <Text
@@ -303,9 +306,10 @@ DialogHeadline.displayName = DIALOG_HEADLINE;
 // DialogContent
 // =============================================================================
 
-function DialogContent({ __internal__variant = 'basic', style, children }: DialogContentProps) {
-  dialogStyles.useVariants({ variant: __internal__variant });
-  const isFullScreen = __internal__variant === 'full-screen';
+function DialogContent({ style, children }: DialogContentProps) {
+  const { variant } = useDialog();
+  dialogStyles.useVariants({ variant });
+  const isFullScreen = variant === 'full-screen';
 
   return (
     <ScrollView
@@ -323,8 +327,9 @@ DialogContent.displayName = DIALOG_CONTENT;
 // DialogDivider
 // =============================================================================
 
-function DialogDivider({ __internal__variant = 'basic' }: DialogDividerProps) {
-  dialogStyles.useVariants({ variant: __internal__variant });
+function DialogDivider() {
+  const { variant } = useDialog();
+  dialogStyles.useVariants({ variant });
   return <Divider style={dialogStyles.divider} />;
 }
 DialogDivider.displayName = DIALOG_DIVIDER;
@@ -333,7 +338,7 @@ DialogDivider.displayName = DIALOG_DIVIDER;
 // DialogActions
 // =============================================================================
 
-function DialogActions({ __internal__variant: _variant, children }: DialogActionsProps) {
+function DialogActions({ children }: DialogActionsProps) {
   return <View style={dialogStyles.actions}>{children}</View>;
 }
 DialogActions.displayName = DIALOG_ACTIONS;
@@ -342,7 +347,7 @@ DialogActions.displayName = DIALOG_ACTIONS;
 // DialogAction
 // =============================================================================
 
-function DialogAction({ onPress, disabled = false, __internal__variant: _variant, children }: DialogActionProps) {
+function DialogAction({ onPress, disabled = false, children }: DialogActionProps) {
   return (
     <Button variant="text" onPress={onPress} disabled={disabled}>
       <ButtonLabel>{children}</ButtonLabel>
@@ -493,7 +498,6 @@ export type {
   DialogActionProps,
   DialogActionsProps,
   DialogContentProps,
-  DialogDividerProps,
   DialogHeadlineProps,
   DialogIconProps,
   DialogProps,

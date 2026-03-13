@@ -53,10 +53,10 @@ type BottomSheetDragHandleProps = {
   label?: string;
   /** Style applied to the drag handle wrapper. */
   style?: StyleProp<ViewStyle>;
-  /** @internal Style applied to the indicator bar. */
-  __internal__indicatorStyle?: StyleProp<ViewStyle>;
-  /** @internal Passed from parent BottomSheet. */
-  __internal__onToggle?: () => void;
+  /** Style applied to the indicator bar. */
+  indicatorStyle?: StyleProp<ViewStyle>;
+  /** Called when the drag handle is tapped to cycle snap points. */
+  onToggle?: () => void;
 };
 
 // =============================================================================
@@ -248,8 +248,8 @@ function BottomSheet({
           <View>
             <BottomSheetDragHandle
               label={dragHandleLabel}
-              __internal__indicatorStyle={handleIndicatorStyle}
-              __internal__onToggle={handleDragHandleToggle}
+              indicatorStyle={handleIndicatorStyle}
+              onToggle={handleDragHandleToggle}
             />
           </View>
         </GestureDetector>
@@ -298,17 +298,17 @@ function BottomSheet({
 function BottomSheetDragHandle({
   label = 'Resize sheet',
   style,
-  __internal__indicatorStyle,
-  __internal__onToggle,
+  indicatorStyle,
+  onToggle,
 }: BottomSheetDragHandleProps) {
   return (
     <RNPressable
-      onPress={__internal__onToggle}
+      onPress={onToggle}
       accessibilityRole="button"
       accessibilityLabel={label}
       style={[sheetStyles.dragHandleHitArea, style]}
     >
-      <View style={[sheetStyles.dragHandle, __internal__indicatorStyle]} />
+      <View style={[sheetStyles.dragHandle, indicatorStyle]} />
     </RNPressable>
   );
 }

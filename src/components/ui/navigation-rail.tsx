@@ -22,7 +22,7 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import { useControllableState, useInteraction } from '../../hooks';
-import { getDisplayName } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -72,17 +72,9 @@ type NavigationRailItemProps = {
   children?: React.ReactNode;
 };
 
-type NavigationRailIconProps = Omit<IconProps, 'size'> & {
-  /** @internal Injected by parent NavigationRailItem. */
-  __internal__railActive?: boolean;
-};
+type NavigationRailIconProps = Omit<IconProps, 'size'>;
 
-type NavigationRailLabelProps = Omit<TextProps, 'variant' | 'size'> & {
-  /** @internal Injected by parent NavigationRailItem. */
-  __internal__railActive?: boolean;
-  /** @internal Injected by parent NavigationRailItem. */
-  __internal__railVariant?: 'collapsed' | 'expanded';
-};
+type NavigationRailLabelProps = Omit<TextProps, 'variant' | 'size'>;
 
 type NavigationRailBadgeProps = Omit<TextProps, 'variant' | 'size'>;
 
@@ -101,8 +93,12 @@ type NavigationRailContextValue = {
   expandProgress: SharedValue<number>;
   expandedWidth: number;
 };
+const [NavigationRailProvider, useNavigationRailContext] =
+  createComponentContext<NavigationRailContextValue>('NavigationRail');
 
-const NavigationRailContext = React.createContext<NavigationRailContextValue | null>(null);
+// NavigationRailItem → Icon/Label context
+type RailItemContextValue = { active: boolean; variant: 'collapsed' | 'expanded' };
+const [RailItemProvider, useRailItem] = createComponentContext<RailItemContextValue>('NavigationRailItem');
 
 // =============================================================================
 // Constants (M3 Specs)
@@ -361,7 +357,7 @@ function NavigationRail({
   );
 
   const renderBody = (context: NavigationRailContextValue) => (
-    <NavigationRailContext.Provider value={context}>
+    <NavigationRailProvider value={context}>
       <ScrollView
         style={styles.scrollContent}
         contentContainerStyle={[styles.scrollContentBase, alignItems === 'center' && styles.scrollContentCenter]}
@@ -370,7 +366,7 @@ function NavigationRail({
       >
         {children}
       </ScrollView>
-    </NavigationRailContext.Provider>
+    </NavigationRailProvider>
   );
 
   // ==========================================================================
@@ -440,7 +436,7 @@ function NavigationRail({
 const ZERO_PROGRESS = { value: 0 } as SharedValue<number>;
 
 function NavigationRailItem({ value: itemValue, accessibilityLabel, style, children }: NavigationRailItemProps) {
-  const ctx = React.useContext(NavigationRailContext);
+  const ctx = useNavigationRailContext();
   const expandProgress = ctx?.expandProgress ?? ZERO_PROGRESS;
   const ew = ctx?.expandedWidth ?? EXPANDED_WIDTH_DEFAULT;
   const active = ctx ? ctx.value === itemValue : false;
@@ -519,29 +515,15 @@ function NavigationRailItem({ value: itemValue, accessibilityLabel, style, child
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const displayName = getDisplayName(child);
-    if (displayName === 'NavigationRailIcon') iconChild = child;
-    else if (displayName === 'NavigationRailLabel') labelChild = child;
-    else if (displayName === 'NavigationRailBadge') badgeChild = child;
+    if (child.type === NavigationRailIcon) iconChild = child;
+    else if (child.type === NavigationRailLabel) labelChild = child;
+    else if (child.type === NavigationRailBadge) badgeChild = child;
   });
 
-  // Single icon (same styling for both positions)
-  const icon = iconChild ? React.cloneElement(iconChild, { __internal__railActive: active } as any) : null;
-
-  // Two labels: same position, different font sizes, cross-faded
-  const collapsedLabel = labelChild
-    ? React.cloneElement(labelChild, {
-        __internal__railActive: active,
-        __internal__railVariant: 'collapsed' as const,
-      } as any)
-    : null;
-
-  const expandedLabel = labelChild
-    ? React.cloneElement(labelChild, {
-        __internal__railActive: active,
-        __internal__railVariant: 'expanded' as const,
-      } as any)
-    : null;
+  // Outer provider: collapsed variant (icon + collapsed label read this).
+  // Expanded label gets a nested provider override.
+  const collapsedCtx = React.useMemo(() => ({ active, variant: 'collapsed' as const }), [active]);
+  const expandedCtx = React.useMemo(() => ({ active, variant: 'expanded' as const }), [active]);
 
   const expandedLabelWidth = ew - E_LABEL_LEFT - (HORIZONTAL_LEADING_SPACE + INDICATOR_LEADING_SPACE);
 
@@ -554,32 +536,36 @@ function NavigationRailItem({ value: itemValue, accessibilityLabel, style, child
       accessibilityState={{ selected: active }}
       accessibilityLabel={accessibilityLabel}
     >
-      {/* Active indicator (transform position + layout size) */}
-      <Animated.View style={[styles.indicatorBase, styles.indicatorPos, indicatorStyle]} />
+      <RailItemProvider value={collapsedCtx}>
+        {/* Active indicator (transform position + layout size) */}
+        <Animated.View style={[styles.indicatorBase, styles.indicatorPos, indicatorStyle]} />
 
-      {/* State layer (same shape, press opacity) */}
-      <Animated.View style={[styles.stateLayerBase, styles.indicatorPos, stateLayerStyle]} />
+        {/* State layer (same shape, press opacity) */}
+        <Animated.View style={[styles.stateLayerBase, styles.indicatorPos, stateLayerStyle]} />
 
-      {/* Icon (pure GPU transform from collapsed position) */}
-      <Animated.View style={[styles.iconPos, iconStyle]}>{icon}</Animated.View>
+        {/* Icon (pure GPU transform from collapsed position) */}
+        <Animated.View style={[styles.iconPos, iconStyle]}>{iconChild}</Animated.View>
 
-      {/* Collapsed label (static position, fades out) */}
-      <Animated.View style={[styles.collapsedLabelPos, collapsedLabelOpacity]}>{collapsedLabel}</Animated.View>
+        {/* Collapsed label (static position, fades out) */}
+        <Animated.View style={[styles.collapsedLabelPos, collapsedLabelOpacity]}>{labelChild}</Animated.View>
 
-      {/* Expanded label (static position, fades in) */}
-      <Animated.View style={[styles.expandedLabelPos, { width: expandedLabelWidth }, expandedLabelOpacity]}>
-        {expandedLabel}
-      </Animated.View>
-
-      {/* Badge: collapsed position */}
-      {badgeChild && <Animated.View style={[styles.badgeCollapsed, collapsedBadgeOpacity]}>{badgeChild}</Animated.View>}
-
-      {/* Badge: expanded position */}
-      {badgeChild && (
-        <Animated.View style={[styles.badgeExpanded, expandedBadgeOpacity]}>
-          {React.cloneElement(badgeChild)}
+        {/* Expanded label (static position, fades in — nested provider overrides variant) */}
+        <Animated.View style={[styles.expandedLabelPos, { width: expandedLabelWidth }, expandedLabelOpacity]}>
+          <RailItemProvider value={expandedCtx}>{labelChild && React.cloneElement(labelChild)}</RailItemProvider>
         </Animated.View>
-      )}
+
+        {/* Badge: collapsed position */}
+        {badgeChild && (
+          <Animated.View style={[styles.badgeCollapsed, collapsedBadgeOpacity]}>{badgeChild}</Animated.View>
+        )}
+
+        {/* Badge: expanded position */}
+        {badgeChild && (
+          <Animated.View style={[styles.badgeExpanded, expandedBadgeOpacity]}>
+            {React.cloneElement(badgeChild)}
+          </Animated.View>
+        )}
+      </RailItemProvider>
     </RNPressable>
   );
 }
@@ -590,8 +576,9 @@ NavigationRailItem.displayName = 'NavigationRailItem';
 // NavigationRailIcon (icon — color changes based on active state)
 // =============================================================================
 
-function NavigationRailIcon({ __internal__railActive = false, style, ...props }: NavigationRailIconProps) {
-  styles.useVariants({ active: __internal__railActive });
+function NavigationRailIcon({ style, ...props }: NavigationRailIconProps) {
+  const { active } = useRailItem();
+  styles.useVariants({ active });
 
   return <Icon size={ICON_SIZE} style={[styles.icon, style]} {...props} />;
 }
@@ -602,13 +589,9 @@ NavigationRailIcon.displayName = 'NavigationRailIcon';
 // NavigationRailLabel (label text — color/font changes based on active state + variant)
 // =============================================================================
 
-function NavigationRailLabel({
-  __internal__railActive = false,
-  __internal__railVariant = 'collapsed',
-  style,
-  ...props
-}: NavigationRailLabelProps) {
-  styles.useVariants({ active: __internal__railActive, railVariant: __internal__railVariant });
+function NavigationRailLabel({ style, ...props }: NavigationRailLabelProps) {
+  const { active, variant: railVariant } = useRailItem();
+  styles.useVariants({ active, railVariant });
 
   return <Text style={[styles.label, style]} numberOfLines={1} {...props} />;
 }

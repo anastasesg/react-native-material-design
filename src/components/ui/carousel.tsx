@@ -18,7 +18,7 @@ import Animated, {
 import { StyleSheet } from 'react-native-unistyles';
 
 import { useInteraction } from '../../hooks';
-import { childGuard, warnUnexpectedChild } from '../../utilities';
+import { createComponentContext } from '../../utilities';
 import { StateLayer } from '../custom';
 import { Text } from './text';
 
@@ -65,95 +65,77 @@ type CarouselItemProps = {
   /** Style applied to the item container. */
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
-
-  /** @internal Injected by Carousel */
-  __internal__index?: number;
-  __internal__totalItems?: number;
-  __internal__scrollX?: SharedValue<number>;
-  __internal__layout?: CarouselLayout;
-  __internal__itemHeight?: number;
-  __internal__largeItemWidth?: number;
-  __internal__pageWidth?: number;
-  __internal__uncontainedItemWidth?: number;
-  __internal__mediumItemWidth?: number;
 };
 
 type CarouselItemImageProps = {
   source: ImageSourcePropType;
   style?: StyleProp<ViewStyle>;
-
-  /** @internal Injected by CarouselItem */
-  __internal__index?: number;
-  __internal__scrollX?: SharedValue<number>;
-  __internal__layout?: CarouselLayout;
-  __internal__pageWidth?: number;
-  __internal__uncontainedItemWidth?: number;
-  /** @internal For multi-aspect: the item's own computed width (used as parallax step) */
-  __internal__computedItemWidth?: number;
 };
 
 type CarouselItemLabelProps = {
   children: string;
   style?: StyleProp<ViewStyle>;
-
-  /** @internal Injected by CarouselItem */
-  __internal__index?: number;
-  __internal__scrollX?: SharedValue<number>;
-  __internal__layout?: CarouselLayout;
-  __internal__pageWidth?: number;
-  __internal__largeItemWidth?: number;
-  __internal__mediumItemWidth?: number;
 };
 
-const isCarouselItem = childGuard<CarouselItemProps>('CarouselItem');
-const isCarouselItemImage = childGuard<CarouselItemImageProps>('CarouselItemImage');
-const isCarouselItemLabel = childGuard<CarouselItemLabelProps>('CarouselItemLabel');
-const CAROUSEL_CHILDREN = ['CarouselItem'];
-const CAROUSEL_ITEM_CHILDREN = ['CarouselItemImage', 'CarouselItemLabel'];
+// =============================================================================
+// Context
+// =============================================================================
+
+type CarouselContextValue = {
+  scrollX: SharedValue<number>;
+  layout: CarouselLayout;
+  itemHeight: number;
+  largeItemWidth: number;
+  pageWidth: number;
+  uncontainedItemWidth: number;
+  mediumItemWidth: number;
+  totalItems: number;
+};
+
+type CarouselItemContextValue = {
+  index: number;
+  scrollX: SharedValue<number>;
+  layout: CarouselLayout;
+  pageWidth: number;
+  uncontainedItemWidth: number;
+  largeItemWidth: number;
+  mediumItemWidth: number;
+  computedItemWidth: number;
+};
+
+const [CarouselProvider, useCarouselCtx] = createComponentContext<CarouselContextValue>('Carousel');
+const [CarouselItemProvider, useCarouselItemCtx] = createComponentContext<CarouselItemContextValue>('CarouselItem');
+const [CarouselItemIndexProvider, useCarouselItemIndex] = createComponentContext<number>('CarouselItemIndex');
 
 // =============================================================================
 // CarouselItemImage
 // =============================================================================
 
-function CarouselItemImage({
-  source,
-  style,
-  __internal__index = 0,
-  __internal__scrollX,
-  __internal__layout = 'hero',
-  __internal__pageWidth = 0,
-  __internal__uncontainedItemWidth = 200,
-  __internal__computedItemWidth,
-}: CarouselItemImageProps) {
-  const animatedImageStyle = useAnimatedStyle(() => {
-    if (!__internal__scrollX || __internal__layout === 'full-screen') return {};
+function CarouselItemImage({ source, style }: CarouselItemImageProps) {
+  const { index, scrollX, layout, pageWidth, uncontainedItemWidth, computedItemWidth } = useCarouselItemCtx();
 
-    const isHeroLike = __internal__layout === 'hero' || __internal__layout === 'center-aligned-hero';
-    const isMultiBrowse = __internal__layout === 'multi-browse';
-    const isMultiAspect = __internal__layout === 'uncontained-multi-aspect';
-    const uncontainedWidth =
-      isMultiAspect && __internal__computedItemWidth ? __internal__computedItemWidth : __internal__uncontainedItemWidth;
-    const stepWidth = isHeroLike || isMultiBrowse ? __internal__pageWidth : uncontainedWidth + ITEM_GAP;
+  const animatedImageStyle = useAnimatedStyle(() => {
+    if (layout === 'full-screen') return {};
+
+    const isHeroLike = layout === 'hero' || layout === 'center-aligned-hero';
+    const isMultiBrowse = layout === 'multi-browse';
+    const isMultiAspect = layout === 'uncontained-multi-aspect';
+    const uncontainedWidth = isMultiAspect && computedItemWidth ? computedItemWidth : uncontainedItemWidth;
+    const stepWidth = isHeroLike || isMultiBrowse ? pageWidth : uncontainedWidth + ITEM_GAP;
 
     if (stepWidth <= 0) return {};
 
-    const itemStart = __internal__index * stepWidth;
+    const itemStart = index * stepWidth;
 
     const translateX = interpolate(
-      __internal__scrollX.value,
+      scrollX.value,
       [itemStart - stepWidth, itemStart, itemStart + stepWidth],
       [PARALLAX_OVERFLOW, 0, -PARALLAX_OVERFLOW],
       Extrapolation.CLAMP,
     );
 
     return { transform: [{ translateX }] };
-  }, [
-    __internal__index,
-    __internal__layout,
-    __internal__pageWidth,
-    __internal__uncontainedItemWidth,
-    __internal__computedItemWidth,
-  ]);
+  }, [index, layout, pageWidth, uncontainedItemWidth, computedItemWidth]);
 
   return (
     <Animated.View style={[styles.imageContainer, animatedImageStyle]}>
@@ -166,57 +148,39 @@ function CarouselItemImage({
 // CarouselItemLabel
 // =============================================================================
 
-function CarouselItemLabel({
-  children,
-  style,
-  __internal__index = 0,
-  __internal__scrollX,
-  __internal__layout = 'hero',
-  __internal__pageWidth = 0,
-  __internal__largeItemWidth = 0,
-  __internal__mediumItemWidth = 0,
-}: CarouselItemLabelProps) {
-  const animatedLabelStyle = useAnimatedStyle(() => {
-    const isHeroLike = __internal__layout === 'hero' || __internal__layout === 'center-aligned-hero';
-    const isMultiBrowse = __internal__layout === 'multi-browse';
+function CarouselItemLabel({ children, style }: CarouselItemLabelProps) {
+  const { index, scrollX, layout, pageWidth, largeItemWidth, mediumItemWidth } = useCarouselItemCtx();
 
-    if ((!isHeroLike && !isMultiBrowse) || !__internal__scrollX || __internal__largeItemWidth <= 0) {
+  const animatedLabelStyle = useAnimatedStyle(() => {
+    const isHeroLike = layout === 'hero' || layout === 'center-aligned-hero';
+    const isMultiBrowse = layout === 'multi-browse';
+
+    if ((!isHeroLike && !isMultiBrowse) || largeItemWidth <= 0) {
       return { opacity: 1 };
     }
 
-    const itemStart = __internal__index * __internal__pageWidth;
+    const itemStart = index * pageWidth;
 
     // Multi-browse: 4-point asymmetric [small, medium, large, small]
     // Hero/center-aligned: 3-point symmetric [small, large, small]
     const width = isMultiBrowse
       ? interpolate(
-          __internal__scrollX.value,
-          [
-            itemStart - 2 * __internal__pageWidth,
-            itemStart - __internal__pageWidth,
-            itemStart,
-            itemStart + __internal__pageWidth,
-          ],
-          [SMALL_ITEM_WIDTH, __internal__mediumItemWidth, __internal__largeItemWidth, SMALL_ITEM_WIDTH],
+          scrollX.value,
+          [itemStart - 2 * pageWidth, itemStart - pageWidth, itemStart, itemStart + pageWidth],
+          [SMALL_ITEM_WIDTH, mediumItemWidth, largeItemWidth, SMALL_ITEM_WIDTH],
           Extrapolation.CLAMP,
         )
       : interpolate(
-          __internal__scrollX.value,
-          [itemStart - __internal__pageWidth, itemStart, itemStart + __internal__pageWidth],
-          [SMALL_ITEM_WIDTH, __internal__largeItemWidth, SMALL_ITEM_WIDTH],
+          scrollX.value,
+          [itemStart - pageWidth, itemStart, itemStart + pageWidth],
+          [SMALL_ITEM_WIDTH, largeItemWidth, SMALL_ITEM_WIDTH],
           Extrapolation.CLAMP,
         );
 
     const opacity = interpolate(width, [LABEL_HIDE_THRESHOLD, LABEL_HIDE_THRESHOLD + 40], [0, 1], Extrapolation.CLAMP);
 
     return { opacity };
-  }, [
-    __internal__index,
-    __internal__layout,
-    __internal__pageWidth,
-    __internal__largeItemWidth,
-    __internal__mediumItemWidth,
-  ]);
+  }, [index, layout, pageWidth, largeItemWidth, mediumItemWidth]);
 
   return (
     <Animated.View style={[styles.labelOverlay, animatedLabelStyle]}>
@@ -231,74 +195,59 @@ function CarouselItemLabel({
 // CarouselItem
 // =============================================================================
 
-function CarouselItem({
-  onPress,
-  accessibilityLabel,
-  aspectRatio,
-  style: itemStyle,
-  children,
-  __internal__index = 0,
-  __internal__totalItems = 1,
-  __internal__scrollX,
-  __internal__layout = 'hero',
-  __internal__itemHeight = 200,
-  __internal__largeItemWidth = 0,
-  __internal__pageWidth = 0,
-  __internal__uncontainedItemWidth = 200,
-  __internal__mediumItemWidth = 0,
-}: CarouselItemProps) {
+function CarouselItem({ onPress, accessibilityLabel, aspectRatio, style: itemStyle, children }: CarouselItemProps) {
+  const itemIndex = useCarouselItemIndex();
+  const { scrollX, layout, itemHeight, largeItemWidth, pageWidth, uncontainedItemWidth, mediumItemWidth, totalItems } =
+    useCarouselCtx();
+
   const { progress, handlers } = useInteraction('press');
 
-  const isHeroLike = __internal__layout === 'hero' || __internal__layout === 'center-aligned-hero';
-
-  const isCenteredHero = __internal__layout === 'center-aligned-hero';
-
-  const isMultiBrowse = __internal__layout === 'multi-browse';
+  const isHeroLike = layout === 'hero' || layout === 'center-aligned-hero';
+  const isCenteredHero = layout === 'center-aligned-hero';
+  const isMultiBrowse = layout === 'multi-browse';
 
   const animatedItemStyle = useAnimatedStyle(() => {
     // Multi-browse: 4-point asymmetric interpolation for width + marginLeft
-    if (isMultiBrowse && __internal__scrollX && __internal__largeItemWidth > 0) {
-      const pw = __internal__pageWidth;
-      const itemStart = __internal__index * pw;
+    if (isMultiBrowse && largeItemWidth > 0) {
+      const pw = pageWidth;
+      const itemStart = itemIndex * pw;
 
       const width = interpolate(
-        __internal__scrollX.value,
+        scrollX.value,
         [itemStart - 2 * pw, itemStart - pw, itemStart, itemStart + pw],
-        [SMALL_ITEM_WIDTH, __internal__mediumItemWidth, __internal__largeItemWidth, SMALL_ITEM_WIDTH],
+        [SMALL_ITEM_WIDTH, mediumItemWidth, largeItemWidth, SMALL_ITEM_WIDTH],
         Extrapolation.CLAMP,
       );
 
       // marginLeft positions items within their uniform wrapper to maintain 8dp visual gaps
-      const mlMedium = __internal__largeItemWidth + ITEM_GAP - pw;
-      const mlSmall = __internal__largeItemWidth + __internal__mediumItemWidth + ITEM_GAP * 2 - pw * 2;
+      const mlMedium = largeItemWidth + ITEM_GAP - pw;
+      const mlSmall = largeItemWidth + mediumItemWidth + ITEM_GAP * 2 - pw * 2;
 
       const marginLeft = interpolate(
-        __internal__scrollX.value,
+        scrollX.value,
         [itemStart - 2 * pw, itemStart - pw, itemStart, itemStart + pw],
         [mlSmall, mlMedium, 0, 0],
         Extrapolation.CLAMP,
       );
 
-      const isFocal = width > __internal__mediumItemWidth + 1;
+      const isFocal = width > mediumItemWidth + 1;
 
       return { width, marginLeft, zIndex: isFocal ? 1 : 0 };
     }
 
-    if (!isHeroLike || !__internal__scrollX || __internal__largeItemWidth <= 0) {
+    if (!isHeroLike || largeItemWidth <= 0) {
       return {};
     }
 
-    const itemStart = __internal__index * __internal__pageWidth;
+    const itemStart = itemIndex * pageWidth;
 
     // Item 0 in center-aligned-hero gets wider focal width (hero-like, fills left space)
     const focalWidth =
-      isCenteredHero && __internal__index === 0
-        ? __internal__largeItemWidth + SMALL_ITEM_WIDTH + ITEM_GAP
-        : __internal__largeItemWidth;
+      isCenteredHero && itemIndex === 0 ? largeItemWidth + SMALL_ITEM_WIDTH + ITEM_GAP : largeItemWidth;
 
     const width = interpolate(
-      __internal__scrollX.value,
-      [itemStart - __internal__pageWidth, itemStart, itemStart + __internal__pageWidth],
+      scrollX.value,
+      [itemStart - pageWidth, itemStart, itemStart + pageWidth],
       [SMALL_ITEM_WIDTH, focalWidth, SMALL_ITEM_WIDTH],
       Extrapolation.CLAMP,
     );
@@ -309,93 +258,69 @@ function CarouselItem({
 
     // Center-aligned hero: items to the LEFT of focal right-align in their wrapper.
     // Item 0 when focal uses negative margin to pull left (hero-like start).
-    const focalMargin = __internal__index === 0 ? -(SMALL_ITEM_WIDTH + ITEM_GAP) : 0;
-    const leftMargin = __internal__pageWidth - SMALL_ITEM_WIDTH - ITEM_GAP;
+    const focalMargin = itemIndex === 0 ? -(SMALL_ITEM_WIDTH + ITEM_GAP) : 0;
+    const leftMargin = pageWidth - SMALL_ITEM_WIDTH - ITEM_GAP;
 
     const marginLeft = interpolate(
-      __internal__scrollX.value,
-      [itemStart - __internal__pageWidth, itemStart, itemStart + __internal__pageWidth],
+      scrollX.value,
+      [itemStart - pageWidth, itemStart, itemStart + pageWidth],
       [0, focalMargin, leftMargin],
       Extrapolation.CLAMP,
     );
 
     return { width, marginLeft };
-  }, [
-    isHeroLike,
-    isCenteredHero,
-    isMultiBrowse,
-    __internal__index,
-    __internal__pageWidth,
-    __internal__largeItemWidth,
-    __internal__mediumItemWidth,
-  ]);
+  }, [isHeroLike, isCenteredHero, isMultiBrowse, itemIndex, pageWidth, largeItemWidth, mediumItemWidth]);
 
-  const isFullScreen = __internal__layout === 'full-screen';
-  const isMultiAspect = __internal__layout === 'uncontained-multi-aspect';
+  const isFullScreen = layout === 'full-screen';
+  const isMultiAspect = layout === 'uncontained-multi-aspect';
 
-  const computedItemWidth =
-    isMultiAspect && aspectRatio ? __internal__itemHeight * aspectRatio : __internal__uncontainedItemWidth;
+  const computedItemWidth = isMultiAspect && aspectRatio ? itemHeight * aspectRatio : uncontainedItemWidth;
 
   const staticWidth = isHeroLike
-    ? isCenteredHero && __internal__index === 0
-      ? __internal__largeItemWidth + SMALL_ITEM_WIDTH + ITEM_GAP
-      : __internal__largeItemWidth
+    ? isCenteredHero && itemIndex === 0
+      ? largeItemWidth + SMALL_ITEM_WIDTH + ITEM_GAP
+      : largeItemWidth
     : isMultiBrowse
-      ? __internal__largeItemWidth
+      ? largeItemWidth
       : isFullScreen
-        ? __internal__largeItemWidth
+        ? largeItemWidth
         : isMultiAspect
           ? computedItemWidth
-          : __internal__uncontainedItemWidth;
+          : uncontainedItemWidth;
   const itemStaticStyle = {
     width: staticWidth,
-    height: __internal__itemHeight,
+    height: itemHeight,
     ...(isFullScreen && { borderRadius: 0 }),
   };
 
   const needsWrapper = isHeroLike || isMultiBrowse;
   const wrapperStyle = needsWrapper
     ? {
-        width: __internal__pageWidth,
-        height: __internal__itemHeight,
+        width: pageWidth,
+        height: itemHeight,
         ...(isMultiBrowse && { overflow: 'visible' as const }),
       }
     : undefined;
 
-  const label = accessibilityLabel ?? `Item ${__internal__index + 1} of ${__internal__totalItems}`;
+  const label = accessibilityLabel ?? `Item ${itemIndex + 1} of ${totalItems}`;
 
-  // Pass internal props down to CarouselItemImage and CarouselItemLabel children
-  const enrichedChildren = React.Children.map(children, (child) => {
-    if (!React.isValidElement(child)) return child;
-
-    if (isCarouselItemImage(child)) {
-      return React.cloneElement(child, {
-        __internal__index,
-        __internal__scrollX,
-        __internal__layout: __internal__layout,
-        __internal__pageWidth: __internal__pageWidth,
-        __internal__uncontainedItemWidth: __internal__uncontainedItemWidth,
-        ...(isMultiAspect && { __internal__computedItemWidth: computedItemWidth }),
-      });
-    }
-    if (isCarouselItemLabel(child)) {
-      return React.cloneElement(child, {
-        __internal__index,
-        __internal__scrollX,
-        __internal__layout: __internal__layout,
-        __internal__pageWidth: __internal__pageWidth,
-        __internal__largeItemWidth: __internal__largeItemWidth,
-        __internal__mediumItemWidth: __internal__mediumItemWidth,
-      });
-    }
-
-    warnUnexpectedChild('CarouselItem', child, CAROUSEL_ITEM_CHILDREN);
-    return child;
-  });
+  const itemCtx = React.useMemo<CarouselItemContextValue>(
+    () => ({
+      index: itemIndex,
+      scrollX,
+      layout,
+      pageWidth,
+      uncontainedItemWidth,
+      largeItemWidth,
+      mediumItemWidth,
+      computedItemWidth,
+    }),
+    [itemIndex, scrollX, layout, pageWidth, uncontainedItemWidth, largeItemWidth, mediumItemWidth, computedItemWidth],
+  );
 
   const inner = (
     <Animated.View style={[styles.item, itemStaticStyle, animatedItemStyle, itemStyle]}>
-      {enrichedChildren}
+      <CarouselItemProvider value={itemCtx}>{children}</CarouselItemProvider>
       <StateLayer progress={progress} color="onSurface" />
     </Animated.View>
   );
@@ -475,70 +400,81 @@ function Carousel({ layout = 'hero', itemHeight = 200, uncontainedItemWidth = 20
       ? multiBrowsePageWidth
       : largeItemWidth + ITEM_GAP;
 
+  const totalItems = React.Children.count(children);
+
+  const ctx = React.useMemo<CarouselContextValue>(
+    () => ({
+      scrollX,
+      layout,
+      itemHeight: isFullScreen ? containerHeight : itemHeight,
+      largeItemWidth,
+      pageWidth,
+      uncontainedItemWidth,
+      mediumItemWidth,
+      totalItems,
+    }),
+    [
+      scrollX,
+      layout,
+      isFullScreen,
+      containerHeight,
+      itemHeight,
+      largeItemWidth,
+      pageWidth,
+      uncontainedItemWidth,
+      mediumItemWidth,
+      totalItems,
+    ],
+  );
+
   if (containerWidth === 0 || (isFullScreen && containerHeight === 0)) {
     return (
       <View style={[styles.container, isFullScreen && styles.fullScreenContainer, style]} onLayout={handleLayout} />
     );
   }
 
-  const totalItems = React.Children.count(children);
-
   const enrichedChildren = React.Children.map(children, (child, index) => {
     if (!React.isValidElement(child)) return child;
-
-    if (isCarouselItem(child)) {
-      return React.cloneElement(child, {
-        __internal__index: index,
-        __internal__totalItems: totalItems,
-        __internal__scrollX: scrollX,
-        __internal__layout: layout,
-        __internal__itemHeight: isFullScreen ? containerHeight : itemHeight,
-        __internal__largeItemWidth: largeItemWidth,
-        __internal__pageWidth: pageWidth,
-        __internal__uncontainedItemWidth: uncontainedItemWidth,
-        __internal__mediumItemWidth: mediumItemWidth,
-      });
-    }
-
-    warnUnexpectedChild('Carousel', child, CAROUSEL_CHILDREN);
-    return child;
+    return <CarouselItemIndexProvider value={index}>{child}</CarouselItemIndexProvider>;
   });
 
   const snaps = isHeroLike || isFullScreen || isMultiBrowse;
 
   return (
     <View style={[styles.container, isFullScreen && styles.fullScreenContainer, style]} onLayout={handleLayout}>
-      <Animated.ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        snapToInterval={snaps ? pageWidth : undefined}
-        disableIntervalMomentum={snaps}
-        decelerationRate={snaps ? 'fast' : 'normal'}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isFullScreen
-            ? { gap: FULL_SCREEN_GAP }
-            : isMultiBrowse
-              ? {
-                  paddingLeft: HORIZONTAL_PADDING,
-                  paddingRight: containerWidth - pageWidth - HORIZONTAL_PADDING,
-                }
-              : isHero
-                ? { paddingLeft: HORIZONTAL_PADDING, paddingRight: containerWidth - pageWidth - HORIZONTAL_PADDING }
-                : isCenteredHero
-                  ? {
-                      paddingLeft: HORIZONTAL_PADDING + SMALL_ITEM_WIDTH + ITEM_GAP,
-                      paddingRight: HORIZONTAL_PADDING + SMALL_ITEM_WIDTH + ITEM_GAP,
-                    }
-                  : styles.scrollContentUncontained,
-          !isHeroLike && !isFullScreen && !isMultiBrowse && { gap: ITEM_GAP },
-        ]}
-        accessibilityLabel={`Carousel with ${totalItems} items`}
-      >
-        {enrichedChildren}
-      </Animated.ScrollView>
+      <CarouselProvider value={ctx}>
+        <Animated.ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          snapToInterval={snaps ? pageWidth : undefined}
+          disableIntervalMomentum={snaps}
+          decelerationRate={snaps ? 'fast' : 'normal'}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isFullScreen
+              ? { gap: FULL_SCREEN_GAP }
+              : isMultiBrowse
+                ? {
+                    paddingLeft: HORIZONTAL_PADDING,
+                    paddingRight: containerWidth - pageWidth - HORIZONTAL_PADDING,
+                  }
+                : isHero
+                  ? { paddingLeft: HORIZONTAL_PADDING, paddingRight: containerWidth - pageWidth - HORIZONTAL_PADDING }
+                  : isCenteredHero
+                    ? {
+                        paddingLeft: HORIZONTAL_PADDING + SMALL_ITEM_WIDTH + ITEM_GAP,
+                        paddingRight: HORIZONTAL_PADDING + SMALL_ITEM_WIDTH + ITEM_GAP,
+                      }
+                    : styles.scrollContentUncontained,
+            !isHeroLike && !isFullScreen && !isMultiBrowse && { gap: ITEM_GAP },
+          ]}
+          accessibilityLabel={`Carousel with ${totalItems} items`}
+        >
+          {enrichedChildren}
+        </Animated.ScrollView>
+      </CarouselProvider>
     </View>
   );
 }
