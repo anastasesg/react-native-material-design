@@ -13,10 +13,22 @@ export type TypographyStyles = {
   large: TypographyStyle;
 };
 
+export type LabelTypographyStyles = TypographyStyles & {
+  largeProminent: TypographyStyle;
+  mediumProminent: TypographyStyle;
+};
+
 export type Typography = {
-  label: TypographyStyles;
+  label: LabelTypographyStyles;
   body: TypographyStyles;
   title: TypographyStyles;
   headline: TypographyStyles;
   display: TypographyStyles;
+  emphasized: {
+    label: TypographyStyles;
+    body: TypographyStyles;
+    title: TypographyStyles;
+    headline: TypographyStyles;
+    display: TypographyStyles;
+  };
 };

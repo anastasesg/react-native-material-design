@@ -30,6 +30,10 @@ export type Motion = {
     standard: EasingCurve;
     standardDecelerate: EasingCurve;
     standardAccelerate: EasingCurve;
+    legacy: EasingCurve;
+    legacyAccelerate: EasingCurve;
+    legacyDecelerate: EasingCurve;
+    linear: EasingCurve;
   };
   duration: {
     short1: 50;
