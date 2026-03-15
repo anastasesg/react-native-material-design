@@ -6,12 +6,13 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Modal, Pressable as RNPressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { Modal, ScrollView, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import { useControllableState } from '../../hooks';
+import { Pressable } from '../custom';
 
 // =============================================================================
 // Types
@@ -270,14 +271,14 @@ function BottomSheet({
     return (
       <Modal transparent visible onRequestClose={handleClose} statusBarTranslucent>
         {/* Scrim */}
-        <RNPressable
+        <Pressable
           style={StyleSheet.absoluteFillObject}
           onPress={handleClose}
           accessibilityRole="button"
           accessibilityLabel="Close bottom sheet"
         >
           <Animated.View style={[sheetStyles.scrim, animatedScrimStyle, scrimStyle]} />
-        </RNPressable>
+        </Pressable>
 
         {/* Sheet anchored to bottom */}
         <View style={sheetStyles.modalAnchor} pointerEvents="box-none">
@@ -302,14 +303,14 @@ function BottomSheetDragHandle({
   onToggle,
 }: BottomSheetDragHandleProps) {
   return (
-    <RNPressable
+    <Pressable
       onPress={onToggle}
       accessibilityRole="button"
       accessibilityLabel={label}
       style={[sheetStyles.dragHandleHitArea, style]}
     >
       <View style={[sheetStyles.dragHandle, indicatorStyle]} />
-    </RNPressable>
+    </Pressable>
   );
 }
 

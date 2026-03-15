@@ -5,17 +5,10 @@
 /// Accessibility: https://m3.material.io/components/cards/accessibility
 
 import React from 'react';
-import {
-  Pressable as RNPressable,
-  type PressableProps as RNPressableProps,
-  type StyleProp,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { type StyleProp, View, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { useInteraction } from '../../hooks';
-import { ShapeContainer, StateLayer } from '../custom';
+import { Pressable, type PressableProps, ShapeContainer, StateLayer } from '../custom';
 
 // =============================================================================
 // Types
@@ -23,7 +16,7 @@ import { ShapeContainer, StateLayer } from '../custom';
 
 type CardVariant = 'elevated' | 'filled' | 'outlined';
 
-type CardProps = Omit<RNPressableProps, 'style' | 'children'> & {
+type CardProps = Omit<PressableProps, 'style' | 'children'> & {
   variant?: CardVariant;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -52,8 +45,6 @@ function Card({
 
   const isActionable = !!(onPress || onLongPress);
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   if (!isActionable) {
     return (
       <View style={[styles.root, styles.container, style, contentStyle]} accessibilityRole="none">
@@ -63,20 +54,19 @@ function Card({
   }
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.root, style]}
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={disabled}
       accessibilityRole="button"
-      {...handlers}
       {...props}
     >
       <ShapeContainer shape="medium" style={[styles.container, contentStyle]}>
-        <StateLayer progress={progress} color="onSurface" disabled={disabled} style={stateStyle} />
+        <StateLayer color="onSurface" disabled={disabled} style={stateStyle} />
         {children}
       </ShapeContainer>
-    </RNPressable>
+    </Pressable>
   );
 }
 

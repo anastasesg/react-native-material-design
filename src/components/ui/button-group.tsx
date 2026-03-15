@@ -5,11 +5,10 @@
 /// Accessibility: https://m3.material.io/components/button-groups/accessibility
 
 import React from 'react';
-import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { useInteraction } from '../../hooks';
 import { createComponentContext, createOptionalComponentContext } from '../../utilities';
 import { type PerCornerShape, ShapeContainer, type ShapeCorner, type ShapeToken } from '../custom';
 
@@ -233,8 +232,6 @@ function ConnectedItem({
   const borderWidth = isOutlined ? (size === 'xlarge' ? 3 : size === 'large' ? 2 : 1) : 0;
 
   // --- Shape computation ---
-  const { progress, handlers: pressHandlers } = useInteraction('press');
-
   const outerCorner = getConnectedOuterCorner(size, shape);
 
   // Rest shape: selected = pill corners, unselected = inner rest token
@@ -255,32 +252,30 @@ function ConnectedItem({
       tr = outerCorner;
       br = outerCorner;
     }
-    return { topLeft: tl, topRight: tr, bottomLeft: bl, bottomRight: br };
+    return { topStart: tl, topEnd: tr, bottomStart: bl, bottomEnd: br };
   }
 
   const restShape = buildShape(restInnerCorner);
   const pressShape = buildShape(pressedInnerCorner);
 
-  // --- Press handlers (forward to child + drive interaction progress) ---
-  const handlePressIn = React.useCallback((event: GestureResponderEvent) => {
+  // --- Press handlers (forward to child) ---
+  const handlePressIn = React.useCallback(() => {
     if (isDisabled) return;
-    pressHandlers.onPressIn(event);
-    child.props.onPressIn?.(event);
-  }, [isDisabled, pressHandlers, child.props]);
+    child.props.onPressIn?.();
+  }, [isDisabled, child.props]);
 
-  const handlePressOut = React.useCallback((event: GestureResponderEvent) => {
+  const handlePressOut = React.useCallback(() => {
     if (isDisabled) return;
-    pressHandlers.onPressOut(event);
-    child.props.onPressOut?.(event);
-  }, [isDisabled, pressHandlers, child.props]);
+    child.props.onPressOut?.();
+  }, [isDisabled, child.props]);
 
   // When group manages selection, intercept onPress to toggle via context
-  const handlePress = React.useCallback((event: GestureResponderEvent) => {
+  const handlePress = React.useCallback(() => {
     if (isDisabled) return;
     if (selection) {
       selection.toggle(index);
     }
-    child.props.onPress?.(event);
+    child.props.onPress?.();
   }, [isDisabled, selection, index, child.props]);
 
   // Build the props to clone onto the child
@@ -306,7 +301,6 @@ function ConnectedItem({
     <ShapeContainer
       shape={restShape}
       shapes={{ press: pressShape }}
-      progress={progress}
       style={[
         groupStyles.connectedClip,
         { height: HEIGHT[size] },

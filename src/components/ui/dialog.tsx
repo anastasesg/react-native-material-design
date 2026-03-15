@@ -6,12 +6,13 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Modal, Pressable as RNPressable, ScrollView, View } from 'react-native';
+import { Modal, ScrollView, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import { useControllableState } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
+import { Pressable } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { Divider } from './divider';
 import { Icon, type MaterialSymbol } from './icon';
@@ -214,14 +215,14 @@ function Dialog({
   if (variant === 'full-screen') {
     return (
       <Modal transparent visible onRequestClose={handleDismiss} statusBarTranslucent>
-        <RNPressable
+        <Pressable
           style={StyleSheet.absoluteFillObject}
           onPress={handleDismiss}
           accessibilityRole="button"
           accessibilityLabel="Close dialog"
         >
           <Animated.View style={[dialogStyles.scrim, animatedScrimStyle, scrimStyle]} />
-        </RNPressable>
+        </Pressable>
 
         <Animated.View style={[dialogStyles.anchor, animatedFullScreenStyle]}>
           <DialogProvider value={ctx}>
@@ -242,14 +243,14 @@ function Dialog({
 
   return (
     <Modal transparent visible onRequestClose={handleDismiss} statusBarTranslucent>
-      <RNPressable
+      <Pressable
         style={StyleSheet.absoluteFillObject}
         onPress={handleDismiss}
         accessibilityRole="button"
         accessibilityLabel="Close dialog"
       >
         <Animated.View style={[dialogStyles.scrim, animatedScrimStyle, scrimStyle]} />
-      </RNPressable>
+      </Pressable>
 
       <View style={dialogStyles.anchor} pointerEvents="box-none">
         <Animated.View style={[dialogStyles.container, animatedBasicStyle, style]} accessibilityRole="alert">

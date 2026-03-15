@@ -5,23 +5,14 @@
 /// Accessibility: https://m3.material.io/components/chips/accessibility
 
 import React, { useMemo } from 'react';
-import {
-  type GestureResponderEvent,
-  Image,
-  type ImageSourcePropType,
-  Pressable as RNPressable,
-  type PressableProps as RNPressableProps,
-  type StyleProp,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { Image, type ImageSourcePropType, type StyleProp, View, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
-import { ShapeContainer, StateLayer } from '../custom';
+import { Pressable, type PressableProps, ShapeContainer, StateLayer, type TapEvent } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -48,7 +39,7 @@ type ChipCtx = {
 
 const [ChipProvider, useChip] = createComponentContext<ChipCtx>('Chip');
 
-type ChipProps = Omit<RNPressableProps, 'style' | 'children'> & {
+type ChipProps = Omit<PressableProps, 'style' | 'children'> & {
   type?: ChipType;
   elevation?: ChipElevation;
 
@@ -117,11 +108,9 @@ function Chip({
 
   styles.useVariants({ type, elevation, selected, disabled });
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   const stateLayerColor = getChipStateLayerColor(type, selected);
 
-  const handlePress = React.useCallback((e: GestureResponderEvent) => {
+  const handlePress = React.useCallback((e: TapEvent) => {
     if (disabled) return;
     if (isSelectable) {
       setSelectedState((prev) => !prev);
@@ -132,20 +121,18 @@ function Chip({
   const ctx = useMemo<ChipCtx>(() => ({ type, elevation, selected, disabled }), [type, elevation, selected, disabled]);
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.root, style]}
       onPress={handlePress}
       disabled={disabled}
       hitSlop={{ top: 8, bottom: 8 }}
       accessibilityRole={isSelectable ? 'checkbox' : 'button'}
       accessibilityState={{ disabled, checked: isSelectable ? selected : undefined }}
-      {...handlers}
       {...props}
     >
       <ShapeContainer
         shape="small"
         shapes={{ press: 'xsmall' }}
-        progress={progress}
         style={[
           styles.container,
           hasLeadingIcon && styles.containerWithLeadingIcon,
@@ -169,9 +156,9 @@ function Chip({
         {disabled && elevation === 'flat' && !selected && <View style={styles.disabledBorder} />}
         {disabled && (elevation === 'elevated' || selected) && <View style={styles.disabledContainer} />}
 
-        <StateLayer progress={progress} color={stateLayerColor} />
+        <StateLayer color={stateLayerColor} />
       </ShapeContainer>
-    </RNPressable>
+    </Pressable>
   );
 }
 

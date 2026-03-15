@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { type ImageSourcePropType, type StyleProp, type ViewStyle } from 'react-native';
-import { ImageBackground, Pressable as RNPressable, View } from 'react-native';
+import { ImageBackground, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -17,9 +17,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { useInteraction } from '../../hooks';
 import { createComponentContext } from '../../utilities';
-import { StateLayer } from '../custom';
+import { Pressable, StateLayer } from '../custom';
 import { Text } from './text';
 
 // =============================================================================
@@ -200,8 +199,6 @@ function CarouselItem({ onPress, accessibilityLabel, aspectRatio, style: itemSty
   const { scrollX, layout, itemHeight, largeItemWidth, pageWidth, uncontainedItemWidth, mediumItemWidth, totalItems } =
     useCarouselCtx();
 
-  const { progress, handlers } = useInteraction('press');
-
   const isHeroLike = layout === 'hero' || layout === 'center-aligned-hero';
   const isCenteredHero = layout === 'center-aligned-hero';
   const isMultiBrowse = layout === 'multi-browse';
@@ -321,28 +318,22 @@ function CarouselItem({ onPress, accessibilityLabel, aspectRatio, style: itemSty
   const inner = (
     <Animated.View style={[styles.item, itemStaticStyle, animatedItemStyle, itemStyle]}>
       <CarouselItemProvider value={itemCtx}>{children}</CarouselItemProvider>
-      <StateLayer progress={progress} color="onSurface" />
+      <StateLayer color="onSurface" />
     </Animated.View>
   );
 
   if (needsWrapper) {
     return (
-      <RNPressable
-        style={wrapperStyle}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        onPress={onPress}
-        {...handlers}
-      >
+      <Pressable style={wrapperStyle} accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
         {inner}
-      </RNPressable>
+      </Pressable>
     );
   }
 
   return (
-    <RNPressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} {...handlers}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
       {inner}
-    </RNPressable>
+    </Pressable>
   );
 }
 

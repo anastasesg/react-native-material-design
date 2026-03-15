@@ -5,21 +5,11 @@
 /// Accessibility: https://m3.material.io/components/lists/accessibility
 
 import React, { useMemo } from 'react';
-import {
-  Image,
-  type ImageSourcePropType,
-  type ImageStyle,
-  Pressable as RNPressable,
-  type PressableProps as RNPressableProps,
-  type StyleProp,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { Image, type ImageSourcePropType, type ImageStyle, type StyleProp, View, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { useInteraction } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
-import { StateLayer } from '../custom';
+import { Pressable, type PressableProps, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -39,7 +29,7 @@ type ListProps = {
   children?: React.ReactNode;
 };
 
-type ListItemProps = Omit<RNPressableProps, 'style' | 'children'> & {
+type ListItemProps = Omit<PressableProps, 'style' | 'children'> & {
   selected?: boolean;
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
@@ -165,22 +155,19 @@ function ListItem({ selected = false, style, children, disabled = false, ...prop
 
   styles.useVariants({ selected, disabled, lines });
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   const ctx = useMemo<ListItemCtx>(() => ({ selected, disabled }), [selected, disabled]);
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.listItem, style]}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
-      {...handlers}
       {...props}
     >
       <ListItemProvider value={ctx}>
         {selected && disabled && <View style={styles.disabledSelectedOverlay} />}
-        <StateLayer progress={progress} color="onSurface" disabled={disabled} />
+        <StateLayer color="onSurface" disabled={disabled} />
         <View style={[styles.listItemInner, isThreeLine && styles.listItemInnerTop]}>
           {leadingSlot && <View style={[styles.leadingSlot, isThreeLine && styles.leadingSlotTop]}>{leadingSlot}</View>}
           <View style={styles.contentSlot}>{sortedContent}</View>
@@ -189,7 +176,7 @@ function ListItem({ selected = false, style, children, disabled = false, ...prop
           )}
         </View>
       </ListItemProvider>
-    </RNPressable>
+    </Pressable>
   );
 }
 

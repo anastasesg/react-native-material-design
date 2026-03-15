@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable as RNPressable, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -18,8 +18,9 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
+import { Pressable, useInteraction } from '../custom';
 import { Text, type TextProps } from './text';
 
 // =============================================================================
@@ -62,7 +63,6 @@ type CheckboxContextValue = {
   value: CheckboxValue;
   error: boolean;
   disabled: boolean;
-  pressProgress: SharedValue<number>;
   checkProgress: SharedValue<number>;
 };
 
@@ -109,7 +109,6 @@ function Checkbox({
 
   const isFilled = value === 'selected' || value === 'indeterminate';
 
-  const { progress, handlers } = useInteraction('press');
   const checkProgress = useSharedValue(isFilled ? 1 : 0);
 
   // Sync animation with value changes
@@ -128,17 +127,15 @@ function Checkbox({
       value,
       error,
       disabled,
-      pressProgress: progress.press,
       checkProgress,
     }),
-    [value, error, disabled, progress.press, checkProgress],
+    [value, error, disabled, checkProgress],
   );
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.root, style]}
       onPress={handlePress}
-      {...handlers}
       disabled={disabled}
       accessibilityRole="checkbox"
       accessibilityState={{
@@ -148,7 +145,7 @@ function Checkbox({
       accessibilityLabel={accessibilityLabel}
     >
       <CheckboxProvider value={ctx}>{children}</CheckboxProvider>
-    </RNPressable>
+    </Pressable>
   );
 }
 
@@ -157,7 +154,8 @@ function Checkbox({
 // =============================================================================
 
 function CheckboxToggle({ style, containerStyle }: CheckboxToggleProps) {
-  const { value, error, disabled, pressProgress, checkProgress } = useCheckbox();
+  const { value, error, disabled, checkProgress } = useCheckbox();
+  const interaction = useInteraction();
 
   const isFilled = value === 'selected' || value === 'indeterminate';
   const isSelected = value === 'selected';
@@ -168,7 +166,12 @@ function CheckboxToggle({ style, containerStyle }: CheckboxToggleProps) {
 
   // State layer opacity (press feedback)
   const animatedStateStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(pressProgress.value, [0, 1], [0, animatedTheme.value.state.pressed], Extrapolation.CLAMP),
+    opacity: interpolate(
+      interaction?.effects.press.value ?? 0,
+      [0, 1],
+      [0, animatedTheme.value.state.pressed],
+      Extrapolation.CLAMP,
+    ),
   }));
 
   // Container fill (animates in when selected/indeterminate)

@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable as RNPressable, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -15,10 +15,10 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
-import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
+import { Pressable, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -157,9 +157,7 @@ function NavigationBarItem({
   // Same pattern as RadioButton — context must be read first.
   styles.useVariants({ itemLayout });
 
-  const { progress, handlers } = useInteraction('press');
   const selectProgress = useSharedValue(active ? 1 : 0);
-  const animatedTheme = useAnimatedTheme();
 
   // Sync selection animation with active state
   React.useEffect(() => {
@@ -182,11 +180,6 @@ function NavigationBarItem({
     ],
   }));
 
-  // State layer opacity (press feedback)
-  const stateLayerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.press.value, [0, 1], [0, animatedTheme.value.state.pressed], Extrapolation.CLAMP),
-  }));
-
   // Single-pass slot extraction — classify children by type
   let iconEl: React.ReactNode = null;
   let labelEl: React.ReactNode = null;
@@ -199,10 +192,9 @@ function NavigationBarItem({
   const navBarItemCtx = React.useMemo(() => ({ active }), [active]);
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.item, style]}
       onPress={handlePress}
-      {...handlers}
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
       accessibilityLabel={accessibilityLabel}
@@ -212,7 +204,7 @@ function NavigationBarItem({
           <View style={styles.itemContentVertical}>
             <View style={styles.indicatorContainerVertical}>
               <Animated.View style={[styles.indicatorVertical, indicatorAnimatedStyle, indicatorStyle]} />
-              <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
+              <StateLayer color="onSecondaryContainer" style={styles.stateLayer} />
               {iconEl}
             </View>
             {labelEl}
@@ -220,13 +212,13 @@ function NavigationBarItem({
         ) : (
           <View style={styles.indicatorContainerHorizontal}>
             <Animated.View style={[styles.indicatorHorizontal, indicatorAnimatedStyle, indicatorStyle]} />
-            <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
+            <StateLayer color="onSecondaryContainer" style={styles.stateLayer} />
             {iconEl}
             {labelEl}
           </View>
         )}
       </NavBarItemProvider>
-    </RNPressable>
+    </Pressable>
   );
 }
 

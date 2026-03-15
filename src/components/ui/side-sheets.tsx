@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Modal, Pressable as RNPressable, ScrollView, View } from 'react-native';
+import { Modal, ScrollView, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -19,6 +19,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { useControllableState } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
+import { Pressable } from '../custom';
 import { Divider } from './divider';
 import { IconButton } from './icon-button';
 import { Text } from './text';
@@ -221,14 +222,14 @@ function SideSheet({
     return (
       <Modal transparent visible onRequestClose={dismiss} statusBarTranslucent>
         {/* Scrim */}
-        <RNPressable
+        <Pressable
           style={StyleSheet.absoluteFillObject}
           onPress={handleScrimPress}
           accessibilityRole="button"
           accessibilityLabel="Close side sheet"
         >
           <Animated.View style={[sheetStyles.scrim, animatedScrimStyle, scrimStyle]} />
-        </RNPressable>
+        </Pressable>
 
         {/* Sheet anchored to end edge */}
         <View style={sheetStyles.modalAnchor} pointerEvents="box-none">

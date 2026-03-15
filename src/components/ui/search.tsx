@@ -6,13 +6,13 @@
 
 import React from 'react';
 import { type StyleProp, type ViewStyle } from 'react-native';
-import { Modal, Pressable as RNPressable, TextInput, useWindowDimensions, View } from 'react-native';
+import { Modal, TextInput, useWindowDimensions, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
-import { StateLayer } from '../custom';
+import { Pressable, StateLayer } from '../custom';
 import { Icon, type MaterialSymbol } from './icon';
 import { IconButton } from './icon-button';
 import { Text } from './text';
@@ -133,7 +133,6 @@ function Search({
   searchStyles.useVariants({ disabled });
 
   const [mounted, setMounted] = React.useState(false);
-  const { progress, handlers: pressHandlers } = useInteraction('press');
 
   // Ref for measuring collapsed bar position — typed loosely because RN 0.78+ View ref
   // doesn't expose measure() in its TS definition, but it's available at runtime
@@ -239,9 +238,8 @@ function Search({
   const bar = (
     <View ref={barRef} collapsable={false}>
       <Animated.View style={[animatedMarginStyle, style]}>
-        <RNPressable
+        <Pressable
           onPress={handleExpand}
-          {...pressHandlers}
           disabled={disabled}
           role="searchbox"
           accessibilityLabel={
@@ -264,9 +262,9 @@ function Search({
               {inputSlot}
               {trailingIcons}
             </SearchProvider>
-            <StateLayer progress={progress} color="onSurface" style={searchStyles.stateLayer} />
+            <StateLayer color="onSurface" style={searchStyles.stateLayer} />
           </View>
-        </RNPressable>
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -352,14 +350,14 @@ function DockedOverlay({
 
   return (
     <Modal transparent visible onRequestClose={onCollapse} statusBarTranslucent>
-      <RNPressable
+      <Pressable
         style={StyleSheet.absoluteFillObject}
         onPress={onCollapse}
         accessibilityRole="button"
         accessibilityLabel="Close search"
       >
         <Animated.View style={[searchStyles.scrim, animatedScrimStyle]} />
-      </RNPressable>
+      </Pressable>
 
       <View style={searchStyles.dockedAnchor} pointerEvents="box-none">
         {/* Bar stays at its position */}

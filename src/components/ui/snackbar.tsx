@@ -6,14 +6,14 @@
 
 import React from 'react';
 import type { LayoutChangeEvent, StyleProp, TextLayoutEvent, ViewStyle } from 'react-native';
-import { Pressable as RNPressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
-import { StateLayer } from '../custom';
+import { Pressable, StateLayer } from '../custom';
 import { Icon } from './icon';
 import { Text } from './text';
 
@@ -297,7 +297,6 @@ function SnackbarMessage({ style, children }: SnackbarMessageProps) {
 
 function SnackbarAction({ onPress, style, children }: SnackbarActionProps) {
   const { setActionOnOwnLine } = useSnackbar();
-  const { progress, handlers } = useInteraction('press');
 
   const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
     const { width } = event.nativeEvent.layout;
@@ -307,9 +306,8 @@ function SnackbarAction({ onPress, style, children }: SnackbarActionProps) {
   }, [setActionOnOwnLine]);
 
   return (
-    <RNPressable
+    <Pressable
       onPress={onPress}
-      {...handlers}
       accessibilityRole="button"
       style={[snackbarStyles.actionButton, style]}
       onLayout={handleLayout}
@@ -317,8 +315,8 @@ function SnackbarAction({ onPress, style, children }: SnackbarActionProps) {
       <Text variant="label" size="large" style={snackbarStyles.actionLabel}>
         {children}
       </Text>
-      <StateLayer progress={progress} color="inversePrimary" />
-    </RNPressable>
+      <StateLayer color="inversePrimary" />
+    </Pressable>
   );
 }
 
@@ -328,7 +326,6 @@ function SnackbarAction({ onPress, style, children }: SnackbarActionProps) {
 
 function SnackbarClose({ onPress }: SnackbarCloseProps) {
   const { dismiss } = useSnackbar();
-  const { progress, handlers } = useInteraction('press');
 
   const handlePress = React.useCallback(() => {
     if (onPress) {
@@ -339,16 +336,15 @@ function SnackbarClose({ onPress }: SnackbarCloseProps) {
   }, [onPress, dismiss]);
 
   return (
-    <RNPressable
+    <Pressable
       onPress={handlePress}
-      {...handlers}
       accessibilityRole="button"
       accessibilityLabel="Dismiss"
       style={snackbarStyles.closeButton}
     >
       <Icon name="close" size={24} style={snackbarStyles.closeIcon} />
-      <StateLayer progress={progress} color="inverseOnSurface" />
-    </RNPressable>
+      <StateLayer color="inverseOnSurface" />
+    </Pressable>
   );
 }
 

@@ -6,19 +6,13 @@
 
 import React from 'react';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
-import { Pressable as RNPressable, ScrollView, View } from 'react-native';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
+import { ScrollView, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
-import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
+import { Pressable, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -257,21 +251,10 @@ function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps)
   // useVariants after useContext
   styles.useVariants({ variant, scrollable });
 
-  const { progress, handlers } = useInteraction('press');
-  const animatedTheme = useAnimatedTheme();
-
   const onSelect = ctx?.onSelect;
   const handlePress = React.useCallback(() => {
     onSelect?.(tabValue);
   }, [onSelect, tabValue]);
-
-  // State layer opacity
-  const stateLayerAnimatedStyle = useAnimatedStyle(() => {
-    const theme = animatedTheme.value;
-    return {
-      opacity: interpolate(progress.press.value, [0, 1], [0, theme.state.pressed], Extrapolation.CLAMP),
-    };
-  });
 
   // Register this tab's layout for indicator positioning
   const registerLayout = ctx?.registerLayout;
@@ -282,17 +265,13 @@ function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps)
 
   const tabItemCtx = React.useMemo(() => ({ active, variant }), [active, variant]);
 
-  // Determine state layer color based on variant and active state
-  // Primary active: primary, Primary inactive: onSurface
-  // Secondary (all): onSurface
-  const stateLayerVariantStyle =
-    variant === 'primary' && active ? styles.stateLayerPrimaryActive : styles.stateLayerDefault;
+  // State layer color per M3: primary+active → primary, otherwise → onSurface
+  const stateLayerColor = variant === 'primary' && active ? 'primary' : 'onSurface';
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.tab, { height: isPrimaryWithIcon ? CONTAINER_HEIGHT_ICON_LABEL : CONTAINER_HEIGHT_LABEL }, style]}
       onPress={handlePress}
-      {...handlers}
       onLayout={handleLayout}
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
@@ -301,8 +280,8 @@ function Tab({ value: tabValue, accessibilityLabel, style, children }: TabProps)
       <View style={[styles.tabContent, variant === 'primary' ? styles.tabContentPrimary : styles.tabContentSecondary]}>
         <TabItemProvider value={tabItemCtx}>{children}</TabItemProvider>
       </View>
-      <Animated.View style={[styles.stateLayer, stateLayerVariantStyle, stateLayerAnimatedStyle]} />
-    </RNPressable>
+      <StateLayer color={stateLayerColor} style={styles.stateLayer} />
+    </Pressable>
   );
 }
 

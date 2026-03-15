@@ -5,22 +5,15 @@
 /// Accessibility: https://m3.material.io/components/split-button/accessibility
 
 import React, { useMemo } from 'react';
-import {
-  type GestureResponderEvent,
-  Pressable as RNPressable,
-  type PressableProps as RNPressableProps,
-  type StyleProp,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { type StyleProp, View, type ViewStyle } from 'react-native';
 import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
-import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
+import { Pressable, type PressableProps, ShapeContainer, type ShapeToken, StateLayer, type TapEvent } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps, type TextSize, type TextVariant } from './text';
 
@@ -141,7 +134,7 @@ function SplitButton({ size = 'small', variant = 'filled', disabled = false, sty
 // Leading button (action half)
 // =============================================================================
 
-type SplitButtonLeadingProps = Omit<RNPressableProps, 'style' | 'children'> & {
+type SplitButtonLeadingProps = Omit<PressableProps, 'style' | 'children'> & {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   containerStyle?: StyleProp<ViewStyle>;
@@ -151,46 +144,37 @@ function SplitButtonLeading({ style, containerStyle, children, ...props }: Split
   const { size, variant, disabled } = useSplitButton();
   styles.useVariants({ size, variant, disabled });
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   const outerRadius = HEIGHT[size] / 2;
   const restShape = {
-    topLeft: outerRadius,
-    bottomLeft: outerRadius,
-    topRight: getSplitInnerRestToken(size),
-    bottomRight: getSplitInnerRestToken(size),
+    topStart: outerRadius,
+    bottomStart: outerRadius,
+    topEnd: getSplitInnerRestToken(size),
+    bottomEnd: getSplitInnerRestToken(size),
   };
   const pressedShape = {
-    topLeft: outerRadius,
-    bottomLeft: outerRadius,
-    topRight: getSplitInnerPressedToken(size),
-    bottomRight: getSplitInnerPressedToken(size),
+    topStart: outerRadius,
+    bottomStart: outerRadius,
+    topEnd: getSplitInnerPressedToken(size),
+    bottomEnd: getSplitInnerPressedToken(size),
   };
 
   const stateLayerColor = getSplitButtonStateLayerColor(variant);
 
   return (
-    <RNPressable
-      style={[styles.leadingRoot, style]}
-      disabled={disabled}
-      accessibilityRole="button"
-      {...handlers}
-      {...props}
-    >
+    <Pressable style={[styles.leadingRoot, style]} disabled={disabled} accessibilityRole="button" {...props}>
       <ShapeContainer
         shape={restShape}
         shapes={{ press: pressedShape }}
-        progress={progress}
         style={[
           styles.leadingContainer,
           { paddingLeft: LEADING_PADDING_LEFT[size], paddingRight: LEADING_PADDING_RIGHT[size] },
           containerStyle,
         ]}
       >
-        <StateLayer progress={progress} color={stateLayerColor} disabled={disabled} />
+        <StateLayer color={stateLayerColor} disabled={disabled} />
         {children}
       </ShapeContainer>
-    </RNPressable>
+    </Pressable>
   );
 }
 
@@ -198,7 +182,7 @@ function SplitButtonLeading({ style, containerStyle, children, ...props }: Split
 // Trailing button (menu half)
 // =============================================================================
 
-type SplitButtonTrailingProps = Omit<RNPressableProps, 'style' | 'children'> & {
+type SplitButtonTrailingProps = Omit<PressableProps, 'style' | 'children'> & {
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -224,8 +208,6 @@ function SplitButtonTrailing({
 
   styles.useVariants({ size, variant, disabled });
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   const iconSize = TRAILING_ICON_SIZE[size];
   const iconOffset = TRAILING_ICON_OFFSET[size];
 
@@ -234,16 +216,16 @@ function SplitButtonTrailing({
   const innerRestToken = open ? outerRadius : getSplitInnerRestToken(size);
 
   const restShape = {
-    topRight: outerRadius,
-    bottomRight: outerRadius,
-    topLeft: innerRestToken,
-    bottomLeft: innerRestToken,
+    topEnd: outerRadius,
+    bottomEnd: outerRadius,
+    topStart: innerRestToken,
+    bottomStart: innerRestToken,
   };
   const pressedShape = {
-    topRight: outerRadius,
-    bottomRight: outerRadius,
-    topLeft: getSplitInnerPressedToken(size),
-    bottomLeft: getSplitInnerPressedToken(size),
+    topEnd: outerRadius,
+    bottomEnd: outerRadius,
+    topStart: getSplitInnerPressedToken(size),
+    bottomStart: getSplitInnerPressedToken(size),
   };
 
   const stateLayerColor = getSplitButtonStateLayerColor(variant);
@@ -265,35 +247,33 @@ function SplitButtonTrailing({
   }));
 
   // --- Handlers ---
-  const handlePress = React.useCallback((e: GestureResponderEvent) => {
+  const handlePress = React.useCallback((e: TapEvent) => {
     if (disabled) return;
     setOpen((prev) => !prev);
     onPress?.(e);
   }, [disabled, setOpen, onPress]);
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.trailingRoot, style]}
       onPress={handlePress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ expanded: open }}
       accessibilityLabel="More options"
-      {...handlers}
       {...props}
     >
       <ShapeContainer
         shape={restShape}
         shapes={{ press: pressedShape }}
-        progress={progress}
         style={[styles.trailingContainer, { paddingHorizontal: TRAILING_PADDING[size] }, containerStyle]}
       >
-        <StateLayer progress={progress} color={stateLayerColor} disabled={disabled} />
+        <StateLayer color={stateLayerColor} disabled={disabled} />
         <Animated.View style={animatedIconStyle}>
           <Icon name="keyboard_arrow_down" size={iconSize} style={styles.trailingIcon} />
         </Animated.View>
       </ShapeContainer>
-    </RNPressable>
+    </Pressable>
   );
 }
 

@@ -6,13 +6,13 @@
 
 import React, { useMemo } from 'react';
 import type { LayoutChangeEvent, LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
-import { Dimensions, Modal, Pressable as RNPressable, View } from 'react-native';
+import { Dimensions, Modal, View } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
-import { StateLayer } from '../custom';
+import { Pressable, StateLayer } from '../custom';
 import { Divider } from './divider';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
@@ -272,7 +272,7 @@ function Menu({
       {anchor}
       {mounted && (
         <Modal transparent visible onRequestClose={handleDismiss} statusBarTranslucent>
-          <RNPressable
+          <Pressable
             style={StyleSheet.absoluteFillObject}
             onPress={handleDismiss}
             accessibilityRole="button"
@@ -310,8 +310,6 @@ function MenuItem({ selected = false, disabled = false, onPress, style, children
   const { variant, colorStyle } = useMenu();
 
   menuStyles.useVariants({ variant, colorStyle, selected, disabled });
-
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
 
   const stateLayerColor = getMenuItemStateLayerColor(variant, colorStyle, selected);
 
@@ -354,23 +352,22 @@ function MenuItem({ selected = false, disabled = false, onPress, style, children
   );
 
   return (
-    <RNPressable
+    <Pressable
       style={[menuStyles.menuItem, style]}
       onPress={handlePress}
       disabled={disabled}
       accessibilityRole="menuitem"
       accessibilityState={{ selected, disabled }}
-      {...handlers}
     >
       <MenuItemProvider value={itemCtx}>
-        <StateLayer progress={progress} color={stateLayerColor} />
+        <StateLayer color={stateLayerColor} />
         <View style={menuStyles.menuItemInner}>
           {leadingSlot}
           <View style={menuStyles.contentSlot}>{sortedContent}</View>
           {trailingSlots.length > 0 && <View style={menuStyles.trailingSlot}>{trailingSlots}</View>}
         </View>
       </MenuItemProvider>
-    </RNPressable>
+    </Pressable>
   );
 }
 MenuItem.displayName = MENU_ITEM;

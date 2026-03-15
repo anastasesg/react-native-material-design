@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Modal, Pressable as RNPressable, ScrollView, View } from 'react-native';
+import { Modal, ScrollView, View } from 'react-native';
 import Animated, {
   Easing,
   Extrapolation,
@@ -17,11 +17,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
-import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
+import { Pressable, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -252,14 +252,14 @@ function NavigationDrawer({
     return (
       <Modal transparent visible onRequestClose={() => setOpen(false)} statusBarTranslucent>
         {/* Scrim */}
-        <RNPressable
+        <Pressable
           style={StyleSheet.absoluteFillObject}
           onPress={handleScrimPress}
           accessibilityRole="button"
           accessibilityLabel="Close navigation drawer"
         >
           <Animated.View style={[styles.scrim, animatedScrimStyle, scrimStyle]} />
-        </RNPressable>
+        </Pressable>
 
         {/* Drawer anchored to start edge */}
         <View style={styles.modalAnchor} pointerEvents="box-none">
@@ -289,9 +289,7 @@ function NavigationDrawerItem({
 
   styles.useVariants({ active });
 
-  const { progress, handlers } = useInteraction('press');
   const selectProgress = useSharedValue(active ? 1 : 0);
-  const animatedTheme = useAnimatedTheme();
 
   // Sync selection animation with active state
   React.useEffect(() => {
@@ -317,11 +315,6 @@ function NavigationDrawerItem({
     ],
   }));
 
-  // State layer opacity (press feedback)
-  const stateLayerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.press.value, [0, 1], [0, animatedTheme.value.state.pressed], Extrapolation.CLAMP),
-  }));
-
   // Slot extraction — classify children by type
   let iconEl: React.ReactNode = null;
   let labelEl: React.ReactNode = null;
@@ -337,10 +330,9 @@ function NavigationDrawerItem({
   const drawerItemCtx = React.useMemo(() => ({ active }), [active]);
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.item, style]}
       onPress={handlePress}
-      {...handlers}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       accessibilityLabel={accessibilityLabel}
@@ -350,7 +342,7 @@ function NavigationDrawerItem({
           {/* Active indicator background */}
           <Animated.View style={[styles.indicator, indicatorAnimatedStyle, indicatorStyle]} />
           {/* State layer */}
-          <Animated.View style={[styles.stateLayer, stateLayerAnimatedStyle]} />
+          <StateLayer color="onSecondaryContainer" style={styles.stateLayer} />
           {/* Content row */}
           <View style={styles.itemRow}>
             {iconEl}
@@ -359,7 +351,7 @@ function NavigationDrawerItem({
           </View>
         </View>
       </DrawerItemProvider>
-    </RNPressable>
+    </Pressable>
   );
 }
 

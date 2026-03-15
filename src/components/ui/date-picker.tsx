@@ -6,14 +6,14 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Modal, Pressable as RNPressable, ScrollView, View } from 'react-native';
+import { Modal, ScrollView, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useControllableState, useInteraction } from '../../hooks';
-import { StateLayer } from '../custom';
+import { useControllableState } from '../../hooks';
+import { Pressable, StateLayer } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { Divider } from './divider';
 import { Icon } from './icon';
@@ -177,21 +177,18 @@ type DateCellProps = {
 };
 
 const DateCell = React.memo(function DateCell({ day, isSelected, isToday, isDisabled, onPress }: DateCellProps) {
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   // State layer color per M3 spec:
   // Selected: onPrimary, Today (unselected): primary, Unselected: onSurfaceVariant
   const stateLayerColor: keyof Scheme = isSelected ? 'onPrimary' : isToday ? 'primary' : 'onSurfaceVariant';
 
   return (
     <View style={pickerStyles.dateCellWrapper}>
-      <RNPressable
+      <Pressable
         onPress={onPress}
         disabled={isDisabled}
         accessibilityRole="button"
         accessibilityLabel={`${day}`}
         accessibilityState={{ selected: isSelected, disabled: isDisabled }}
-        {...handlers}
       >
         <View
           style={[
@@ -200,7 +197,7 @@ const DateCell = React.memo(function DateCell({ day, isSelected, isToday, isDisa
             isToday && !isSelected && pickerStyles.dateCellToday,
           ]}
         >
-          <StateLayer progress={progress} color={stateLayerColor} style={pickerStyles.dateCellStateLayer} />
+          <StateLayer color={stateLayerColor} style={pickerStyles.dateCellStateLayer} />
           <Text
             style={[
               pickerStyles.dateCellText,
@@ -212,7 +209,7 @@ const DateCell = React.memo(function DateCell({ day, isSelected, isToday, isDisa
             {day}
           </Text>
         </View>
-      </RNPressable>
+      </Pressable>
     </View>
   );
 });
@@ -229,20 +226,17 @@ type YearCellProps = {
 };
 
 const YearCell = React.memo(function YearCell({ year, isSelected, isCurrent, onPress }: YearCellProps) {
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   // State layer color per M3 spec:
   // Selected: onPrimary, Unselected: onSurfaceVariant
   const stateLayerColor: keyof Scheme = isSelected ? 'onPrimary' : 'onSurfaceVariant';
 
   return (
-    <RNPressable
+    <Pressable
       style={pickerStyles.yearCellWrapper}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${year}`}
       accessibilityState={{ selected: isSelected }}
-      {...handlers}
     >
       <View
         style={[
@@ -251,7 +245,7 @@ const YearCell = React.memo(function YearCell({ year, isSelected, isCurrent, onP
           isCurrent && !isSelected && pickerStyles.yearCellCurrent,
         ]}
       >
-        <StateLayer progress={progress} color={stateLayerColor} style={pickerStyles.yearCellStateLayer} />
+        <StateLayer color={stateLayerColor} style={pickerStyles.yearCellStateLayer} />
         <Text
           style={[
             pickerStyles.yearCellText,
@@ -262,7 +256,7 @@ const YearCell = React.memo(function YearCell({ year, isSelected, isCurrent, onP
           {year}
         </Text>
       </View>
-    </RNPressable>
+    </Pressable>
   );
 });
 
@@ -276,16 +270,14 @@ type MonthYearButtonProps = {
 };
 
 function MonthYearButton({ label, onPress }: MonthYearButtonProps) {
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   return (
-    <RNPressable onPress={onPress} {...handlers}>
+    <Pressable onPress={onPress}>
       <View style={pickerStyles.monthYearButton}>
-        <StateLayer progress={progress} color="onSurfaceVariant" />
+        <StateLayer color="onSurfaceVariant" />
         <Text style={pickerStyles.monthYearText}>{label}</Text>
         <Icon name="arrow_drop_down" size={24} style={pickerStyles.monthYearIcon} />
       </View>
-    </RNPressable>
+    </Pressable>
   );
 }
 
@@ -582,14 +574,14 @@ function DatePicker({
 
   return (
     <Modal transparent visible onRequestClose={handleDismiss} statusBarTranslucent>
-      <RNPressable
+      <Pressable
         style={StyleSheet.absoluteFillObject}
         onPress={handleDismiss}
         accessibilityRole="button"
         accessibilityLabel="Close date picker"
       >
         <Animated.View style={[pickerStyles.scrim, animatedScrimStyle]} />
-      </RNPressable>
+      </Pressable>
 
       <View style={pickerStyles.anchor} pointerEvents="box-none">
         <Animated.View

@@ -4,20 +4,13 @@
 /// Guidelines: https://m3.material.io/components/icon-buttons/guidelines
 /// Accessibility: https://m3.material.io/components/icon-buttons/accessibility
 import React from 'react';
-import {
-  type GestureResponderEvent,
-  Pressable as RNPressable,
-  type PressableProps as RNPressableProps,
-  type StyleProp,
-  type TextStyle,
-  type ViewStyle,
-} from 'react-native';
+import { type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useControllableState, useInteraction } from '../../hooks';
-import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
+import { useControllableState } from '../../hooks';
+import { Pressable, type PressableProps, ShapeContainer, type ShapeToken, StateLayer, type TapEvent } from '../custom';
 import { useButtonGroupItem } from './button-group';
 import { Icon, type MaterialSymbol } from './icon';
 
@@ -63,7 +56,7 @@ type IconButtonShape = 'rounded' | 'square';
 type IconButtonVariant = 'filled' | 'outlined' | 'standard' | 'tonal';
 type IconButtonSelection = 'none' | 'selected' | 'unselected';
 
-type IconButtonProps = Omit<RNPressableProps, 'style' | 'children'> & {
+type IconButtonProps = Omit<PressableProps, 'style' | 'children'> & {
   /** Icon name, or a function receiving the selection state for toggle buttons. */
   name: MaterialSymbol | ((state: { selected: boolean }) => MaterialSymbol);
   size?: IconButtonSize;
@@ -106,8 +99,6 @@ function IconButton({
 
   styles.useVariants({ size, variant, shape, selection, disabled });
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   const groupItem = useButtonGroupItem();
   const suppressCorner = groupItem?.suppressCornerAnimation ?? false;
   const restShape = getIconButtonRestShapeToken(size, shape, selection);
@@ -124,7 +115,7 @@ function IconButton({
     return 20;
   }, [size]);
 
-  const handlePress = React.useCallback((e: GestureResponderEvent) => {
+  const handlePress = React.useCallback((e: TapEvent) => {
     if (toggle) {
       setSelected((prev) => !prev);
     }
@@ -134,25 +125,23 @@ function IconButton({
   const displayIcon = typeof name === 'function' ? name({ selected }) : name;
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.root, style]}
       onPress={handlePress}
       disabled={disabled}
       accessibilityRole={toggle ? 'togglebutton' : 'button'}
       accessibilityState={toggle ? { checked: selected, disabled } : { disabled }}
-      {...handlers}
       {...props}
     >
       <ShapeContainer
         shape={restShape}
         shapes={pressedShape ? { press: pressedShape } : undefined}
-        progress={pressedShape ? progress : undefined}
         style={[styles.content, containerStyle]}
       >
-        <StateLayer progress={progress} color={stateLayerColor} disabled={disabled} />
+        <StateLayer color={stateLayerColor} disabled={disabled} />
         <Icon name={displayIcon} size={iconSize} variant="outlined" style={[styles.icon, iconStyle]} />
       </ShapeContainer>
-    </RNPressable>
+    </Pressable>
   );
 }
 

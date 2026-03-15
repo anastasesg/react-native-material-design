@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
-import { Modal, Pressable as RNPressable, TextInput, View } from 'react-native';
+import { Modal, TextInput, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -20,8 +20,8 @@ import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useControllableState, useInteraction } from '../../hooks';
-import { StateLayer } from '../custom';
+import { useControllableState } from '../../hooks';
+import { Pressable, StateLayer } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { IconButton } from './icon-button';
 import { Text } from './text';
@@ -198,16 +198,14 @@ type TimeSelectorButtonProps = {
 };
 
 function TimeSelectorButton({ label, selected, width, onPress, accessibilityLabel }: TimeSelectorButtonProps) {
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
   const stateLayerColor: keyof Scheme = selected ? 'onPrimaryContainer' : 'onSurface';
 
   return (
-    <RNPressable
+    <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected }}
-      {...handlers}
     >
       <View
         style={[
@@ -216,7 +214,7 @@ function TimeSelectorButton({ label, selected, width, onPress, accessibilityLabe
           selected ? pickerStyles.timeSelectorSelected : pickerStyles.timeSelectorUnselected,
         ]}
       >
-        <StateLayer progress={progress} color={stateLayerColor} />
+        <StateLayer color={stateLayerColor} />
         <Text
           style={[
             pickerStyles.timeSelectorText,
@@ -226,7 +224,7 @@ function TimeSelectorButton({ label, selected, width, onPress, accessibilityLabe
           {label}
         </Text>
       </View>
-    </RNPressable>
+    </Pressable>
   );
 }
 
@@ -242,19 +240,17 @@ type PeriodButtonProps = {
 };
 
 function PeriodButton({ label, selected, onPress, style }: PeriodButtonProps) {
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
   const stateLayerColor: keyof Scheme = selected ? 'onTertiaryContainer' : 'onSurfaceVariant';
 
   return (
-    <RNPressable
+    <Pressable
       onPress={onPress}
       style={[pickerStyles.periodButton, style, selected && pickerStyles.periodButtonSelected]}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected }}
-      {...handlers}
     >
-      <StateLayer progress={progress} color={stateLayerColor} />
+      <StateLayer color={stateLayerColor} />
       <Text
         style={[
           pickerStyles.periodText,
@@ -263,7 +259,7 @@ function PeriodButton({ label, selected, onPress, style }: PeriodButtonProps) {
       >
         {label}
       </Text>
-    </RNPressable>
+    </Pressable>
   );
 }
 
@@ -427,14 +423,14 @@ function TimePicker({
 
   return (
     <Modal transparent visible onRequestClose={handleDismiss} statusBarTranslucent>
-      <RNPressable
+      <Pressable
         style={StyleSheet.absoluteFillObject}
         onPress={handleDismiss}
         accessibilityRole="button"
         accessibilityLabel="Close time picker"
       >
         <Animated.View style={[pickerStyles.scrim, animatedScrimStyle]} />
-      </RNPressable>
+      </Pressable>
 
       <View style={pickerStyles.anchor} pointerEvents="box-none">
         <Animated.View
@@ -832,7 +828,7 @@ function InputFields({
       <View style={pickerStyles.inputRow}>
         {/* Hour input */}
         <View>
-          <RNPressable
+          <Pressable
             onPress={() => {
               onSelectionChange('hours');
               hoursRef.current?.focus();
@@ -855,7 +851,7 @@ function InputFields({
                 accessibilityLabel="Hours"
               />
             </View>
-          </RNPressable>
+          </Pressable>
           <Text style={pickerStyles.inputSupportingText}>Hour</Text>
         </View>
 
@@ -866,7 +862,7 @@ function InputFields({
 
         {/* Minute input */}
         <View>
-          <RNPressable
+          <Pressable
             onPress={() => {
               onSelectionChange('minutes');
               minutesRef.current?.focus();
@@ -889,7 +885,7 @@ function InputFields({
                 accessibilityLabel="Minutes"
               />
             </View>
-          </RNPressable>
+          </Pressable>
           <Text style={pickerStyles.inputSupportingText}>Minute</Text>
         </View>
 

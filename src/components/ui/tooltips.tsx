@@ -6,12 +6,13 @@
 
 import React from 'react';
 import type { LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
-import { Dimensions, Modal, Pressable as RNPressable, View } from 'react-native';
+import { Dimensions, Modal, View } from 'react-native';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
 import { useControllableState } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
+import { Pressable } from '../custom';
 import { Text } from './text';
 
 // =============================================================================
@@ -285,7 +286,7 @@ function Tooltip({
       </View>
       {mounted && (
         <Modal transparent visible onRequestClose={handleDismiss} statusBarTranslucent>
-          <RNPressable
+          <Pressable
             style={StyleSheet.absoluteFillObject}
             onPress={handleDismiss}
             accessibilityRole="button"

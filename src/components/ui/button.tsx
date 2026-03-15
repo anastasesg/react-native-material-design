@@ -5,20 +5,14 @@
 /// Accessibility: https://m3.material.io/components/buttons/accessibility
 
 import React, { useMemo } from 'react';
-import {
-  type GestureResponderEvent,
-  Pressable as RNPressable,
-  type PressableProps as RNPressableProps,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { type StyleProp, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
-import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
+import { Pressable, type PressableProps, ShapeContainer, type ShapeToken, StateLayer, type TapEvent } from '../custom';
 import { useButtonGroupItem } from './button-group';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps, type TextSize, type TextVariant } from './text';
@@ -72,7 +66,7 @@ type ButtonShape = 'rounded' | 'square';
 type ButtonVariant = 'filled' | 'elevated' | 'tonal' | 'outlined' | 'text';
 type ButtonSelection = 'none' | 'selected' | 'unselected';
 
-type ButtonProps = Omit<RNPressableProps, 'style' | 'children'> & {
+type ButtonProps = Omit<PressableProps, 'style' | 'children'> & {
   children?: React.ReactNode;
   size?: ButtonSize;
   shape?: ButtonShape;
@@ -112,8 +106,6 @@ function Button({
 
   styles.useVariants({ size, shape, variant, selection, disabled });
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   const groupItem = useButtonGroupItem();
   const suppressCorner = groupItem?.suppressCornerAnimation ?? false;
   const restShape = getRestShapeToken(size, shape, selection);
@@ -121,7 +113,7 @@ function Button({
 
   const stateLayerColor = getButtonStateLayerColor(variant, selection);
 
-  const handlePress = React.useCallback((e: GestureResponderEvent) => {
+  const handlePress = React.useCallback((e: TapEvent) => {
     if (disabled) return;
     if (toggle) {
       setSelected((prev) => !prev);
@@ -135,17 +127,16 @@ function Button({
   );
 
   return (
-    <RNPressable style={[styles.root, style]} onPress={handlePress} disabled={disabled} {...handlers} {...props}>
+    <Pressable style={[styles.root, style]} onPress={handlePress} disabled={disabled} {...props}>
       <ShapeContainer
         shape={restShape}
         shapes={pressedShape ? { press: pressedShape } : undefined}
-        progress={pressedShape ? progress : undefined}
         style={[styles.container, containerStyle]}
       >
-        <StateLayer progress={progress} color={stateLayerColor} disabled={disabled} />
+        <StateLayer color={stateLayerColor} disabled={disabled} />
         <ButtonProvider value={ctx}>{children}</ButtonProvider>
       </ShapeContainer>
-    </RNPressable>
+    </Pressable>
   );
 }
 

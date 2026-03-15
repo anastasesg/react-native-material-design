@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable as RNPressable, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -19,8 +19,9 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime, withUnistyles } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
+import { Pressable, useInteraction } from '../custom';
 import { Icon } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -68,10 +69,7 @@ type SwitchContextValue = {
   selected: boolean;
   iconMode: SwitchIconMode;
   disabled: boolean;
-  pressProgress: SharedValue<number>;
   selectProgress: SharedValue<number>;
-  hoverProgress: SharedValue<number>;
-  focusProgress: SharedValue<number>;
 };
 
 const [SwitchProvider, useSwitch] = createComponentContext<SwitchContextValue>('Switch');
@@ -118,7 +116,6 @@ function Switch({
     onChange: onSelectedChange,
   });
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
   const selectProgress = useSharedValue(selected ? 1 : 0);
 
   // Sync animation with value changes
@@ -137,19 +134,15 @@ function Switch({
       selected,
       iconMode: icon,
       disabled,
-      pressProgress: progress.press,
       selectProgress,
-      hoverProgress: progress.hover,
-      focusProgress: progress.focus,
     }),
-    [selected, icon, disabled, progress.press, selectProgress, progress.hover, progress.focus],
+    [selected, icon, disabled, selectProgress],
   );
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.root, style]}
       onPress={handlePress}
-      {...handlers}
       disabled={disabled}
       accessibilityRole="switch"
       accessibilityState={{
@@ -159,7 +152,7 @@ function Switch({
       accessibilityLabel={accessibilityLabel}
     >
       <SwitchProvider value={ctx}>{children}</SwitchProvider>
-    </RNPressable>
+    </Pressable>
   );
 }
 
@@ -168,7 +161,8 @@ function Switch({
 // =============================================================================
 
 function SwitchToggle({ style, trackStyle, handleStyle }: SwitchToggleProps) {
-  const { selected, iconMode, disabled, pressProgress, selectProgress, hoverProgress, focusProgress } = useSwitch();
+  const { selected, iconMode, disabled, selectProgress } = useSwitch();
+  const interaction = useInteraction();
 
   const showIcon = iconMode === 'both' || (iconMode === 'selected' && selected);
   const hasIcon = iconMode !== 'none';
@@ -187,7 +181,7 @@ function SwitchToggle({ style, trackStyle, handleStyle }: SwitchToggleProps) {
   // Animated handle position + size
   const animatedHandleStyle = useAnimatedStyle(() => {
     const sel = selectProgress.value;
-    const press = pressProgress.value;
+    const press = interaction?.effects.press.value ?? 0;
 
     // Base size interpolates between unselected and selected
     const baseSize = interpolate(sel, [0, 1], [unselectedSize, selectedSize], Extrapolation.CLAMP);
@@ -226,7 +220,11 @@ function SwitchToggle({ style, trackStyle, handleStyle }: SwitchToggleProps) {
       return { backgroundColor: color, opacity };
     }
 
-    const interacting = Math.max(pressProgress.value, hoverProgress.value, focusProgress.value);
+    const interacting = Math.max(
+      interaction?.effects.press.value ?? 0,
+      interaction?.effects.hover.value ?? 0,
+      interaction?.effects.focus.value ?? 0,
+    );
 
     // Interpolate resting color across selection
     const restColor = interpolateColor(sel, [0, 1], [t.scheme.outline, t.scheme.onPrimary]);
@@ -275,9 +273,9 @@ function SwitchToggle({ style, trackStyle, handleStyle }: SwitchToggleProps) {
   const animatedStateLayerStyle = useAnimatedStyle(() => {
     const t = animatedTheme.value;
     const sel = selectProgress.value;
-    const press = pressProgress.value;
-    const hover = hoverProgress.value;
-    const focus = focusProgress.value;
+    const press = interaction?.effects.press.value ?? 0;
+    const hover = interaction?.effects.hover.value ?? 0;
+    const focus = interaction?.effects.focus.value ?? 0;
 
     const centerX = interpolate(sel, [0, 1], [0, HANDLE_TRAVEL], Extrapolation.CLAMP);
     const left = centerX + (TRACK_HEIGHT - STATE_LAYER_SIZE) / 2;
@@ -298,7 +296,7 @@ function SwitchToggle({ style, trackStyle, handleStyle }: SwitchToggleProps) {
   // Focus indicator (M3: secondary color, 3dp thickness, 2dp offset around the track)
   const animatedFocusIndicatorStyle = useAnimatedStyle(() => {
     const t = animatedTheme.value;
-    const focus = focusProgress.value;
+    const focus = interaction?.effects.focus.value ?? 0;
 
     return {
       opacity: interpolate(focus, [0, 1], [0, 1], Extrapolation.CLAMP),

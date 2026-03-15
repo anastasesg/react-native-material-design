@@ -6,20 +6,15 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Modal, Pressable as RNPressable, ScrollView, View } from 'react-native';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-} from 'react-native-reanimated';
+import { Modal, ScrollView, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
-import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import type { Scheme } from '@/theme/scheme';
+
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
+import { Pressable, StateLayer } from '../custom';
 import { FAB, type FABColorStyle, FABIcon, type FABSize } from './fab';
 import { Icon, type MaterialSymbol } from './icon';
 import { Text } from './text';
@@ -29,6 +24,20 @@ import { Text } from './text';
 // =============================================================================
 
 type FABMenuColor = 'primary' | 'secondary' | 'tertiary';
+
+/** State layer color for the close button — matches the FAB surface content color. */
+const CLOSE_STATE_COLOR: Record<FABMenuColor, keyof Scheme> = {
+  primary: 'onPrimary',
+  secondary: 'onSecondary',
+  tertiary: 'onTertiary',
+};
+
+/** State layer color for menu items — matches the container content color. */
+const ITEM_STATE_COLOR: Record<FABMenuColor, keyof Scheme> = {
+  primary: 'onPrimaryContainer',
+  secondary: 'onSecondaryContainer',
+  tertiary: 'onTertiaryContainer',
+};
 
 type FABMenuItemCtx = { color: FABMenuColor; open: boolean; index: number };
 const [FABMenuItemProvider, useFABMenuItem] = createComponentContext<FABMenuItemCtx>('FABMenuItem');
@@ -148,14 +157,14 @@ function FABMenu({
       {isOpen && (
         <Modal transparent visible onRequestClose={handleClose} statusBarTranslucent>
           {/* Scrim */}
-          <RNPressable
+          <Pressable
             style={StyleSheet.absoluteFillObject}
             onPress={handleClose}
             accessibilityRole="button"
             accessibilityLabel="Close menu"
           >
             <Animated.View style={[menuStyles.scrim, animatedScrimStyle]} />
-          </RNPressable>
+          </Pressable>
 
           {/* Menu content - anchored bottom-right */}
           <View style={menuStyles.anchor} pointerEvents="box-none">
@@ -190,8 +199,6 @@ function FABMenu({
 
 function CloseButton({ color, onPress, open }: { color: FABMenuColor; onPress: () => void; open: boolean }) {
   menuStyles.useVariants({ closeColor: color });
-  const animatedTheme = useAnimatedTheme();
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
   const scale = useSharedValue(0);
 
   React.useEffect(() => {
@@ -205,22 +212,14 @@ function CloseButton({ color, onPress, open }: { color: FABMenuColor; onPress: (
     transform: [{ scale: scale.value }],
   }));
 
-  const animatedStateStyle = useAnimatedStyle(() => {
-    const t = animatedTheme.value;
-    const hoverOpacity = interpolate(progress.hover.value, [0, 1], [0, t.state.hover], Extrapolation.CLAMP);
-    const focusOpacity = interpolate(progress.focus.value, [0, 1], [0, t.state.focus], Extrapolation.CLAMP);
-    const pressOpacity = interpolate(progress.press.value, [0, 1], [0, t.state.pressed], Extrapolation.CLAMP);
-    return { opacity: Math.max(hoverOpacity, focusOpacity, pressOpacity) };
-  });
-
   return (
     <View style={menuStyles.closeButtonWrapper}>
-      <RNPressable onPress={onPress} {...handlers} accessibilityRole="button" accessibilityLabel="Close">
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Close">
         <Animated.View style={[menuStyles.closeButton, animatedContainerStyle]}>
           <Icon name="close" size={CLOSE_ICON_SIZE} variant="outlined" style={menuStyles.closeIcon} />
-          <Animated.View style={[menuStyles.closeState, animatedStateStyle]} />
+          <StateLayer color={CLOSE_STATE_COLOR[color]} style={menuStyles.closeState} />
         </Animated.View>
-      </RNPressable>
+      </Pressable>
     </View>
   );
 }
@@ -232,8 +231,6 @@ function CloseButton({ color, onPress, open }: { color: FABMenuColor; onPress: (
 function FABMenuItem({ name, label, onPress, style }: FABMenuItemProps) {
   const { color, open, index } = useFABMenuItem();
   menuStyles.useVariants({ itemColor: color });
-  const animatedTheme = useAnimatedTheme();
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
   const itemScale = useSharedValue(0);
   const itemOpacity = useSharedValue(0);
 
@@ -254,24 +251,16 @@ function FABMenuItem({ name, label, onPress, style }: FABMenuItemProps) {
     opacity: itemOpacity.value,
   }));
 
-  const animatedStateStyle = useAnimatedStyle(() => {
-    const t = animatedTheme.value;
-    const hoverOpacity = interpolate(progress.hover.value, [0, 1], [0, t.state.hover], Extrapolation.CLAMP);
-    const focusOpacity = interpolate(progress.focus.value, [0, 1], [0, t.state.focus], Extrapolation.CLAMP);
-    const pressOpacity = interpolate(progress.press.value, [0, 1], [0, t.state.pressed], Extrapolation.CLAMP);
-    return { opacity: Math.max(hoverOpacity, focusOpacity, pressOpacity) };
-  });
-
   return (
-    <RNPressable onPress={onPress} {...handlers} accessibilityRole="button" accessibilityLabel={label}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
       <Animated.View style={[menuStyles.item, animatedItemStyle, style]}>
         <Icon name={name} size={ITEM_ICON_SIZE} variant="outlined" style={menuStyles.itemIcon} />
         <Text variant="label" size="large" style={menuStyles.itemLabel} numberOfLines={1}>
           {label}
         </Text>
-        <Animated.View style={[menuStyles.itemState, animatedStateStyle]} />
+        <StateLayer color={ITEM_STATE_COLOR[color]} style={menuStyles.itemState} />
       </Animated.View>
-    </RNPressable>
+    </Pressable>
   );
 }
 

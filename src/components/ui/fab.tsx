@@ -5,19 +5,13 @@
 /// Accessibility: https://m3.material.io/components/floating-action-button/accessibility
 
 import React, { useMemo } from 'react';
-import {
-  Pressable as RNPressable,
-  type PressableProps as RNPressableProps,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { type StyleProp, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useInteraction } from '../../hooks';
 import { createComponentContext } from '../../utilities';
-import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
+import { Pressable, type PressableProps, ShapeContainer, type ShapeToken, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -67,7 +61,7 @@ type FABCtx = {
 
 const [FABProvider, useFAB] = createComponentContext<FABCtx>('FAB');
 
-type FABProps = Omit<RNPressableProps, 'style' | 'children'> & {
+type FABProps = Omit<PressableProps, 'style' | 'children'> & {
   children: React.ReactNode;
   /** @default 'medium' */
   size?: FABSize;
@@ -104,32 +98,24 @@ function FAB({
 
   styles.useVariants({ size, colorStyle, disabled, layout });
 
-  const { progress, handlers } = useInteraction('press', 'hover', 'focus');
-
   const restShape = getFABRestShapeToken(size);
   const pressedShape = getFABPressedShapeToken(size);
 
   const ctx = useMemo<FABCtx>(() => ({ size, colorStyle, disabled }), [size, colorStyle, disabled]);
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.root, style]}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      {...handlers}
       {...props}
     >
-      <ShapeContainer
-        shape={restShape}
-        shapes={{ press: pressedShape }}
-        progress={progress}
-        style={[styles.container, containerStyle]}
-      >
-        <StateLayer progress={progress} color={FAB_STATE_LAYER_COLOR[colorStyle]} disabled={disabled} />
+      <ShapeContainer shape={restShape} shapes={{ press: pressedShape }} style={[styles.container, containerStyle]}>
+        <StateLayer color={FAB_STATE_LAYER_COLOR[colorStyle]} disabled={disabled} />
         <FABProvider value={ctx}>{children}</FABProvider>
       </ShapeContainer>
-    </RNPressable>
+    </Pressable>
   );
 }
 

@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable as RNPressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import Animated, {
   Easing,
   Extrapolation,
@@ -21,8 +21,9 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
+import { Pressable, useInteraction } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -331,7 +332,7 @@ function NavigationRail({
     openStyle: ReturnType<typeof useAnimatedStyle>,
   ) =>
     showMenuButton ? (
-      <RNPressable
+      <Pressable
         onPress={toggleOpen}
         style={styles.menuButton}
         accessibilityRole="button"
@@ -343,7 +344,7 @@ function NavigationRail({
         <Animated.View style={[styles.menuIconLayer, openStyle]}>
           <Icon name="menu_open" size={ICON_SIZE} style={styles.menuIcon} />
         </Animated.View>
-      </RNPressable>
+      </Pressable>
     ) : null;
 
   const renderHeader = (
@@ -404,7 +405,7 @@ function NavigationRail({
 
       {/* Modal overlay — always mounted, hidden when collapsed via opacity */}
       <Animated.View style={[styles.modalOverlay, modalOverlayOpacity]} pointerEvents={open ? 'auto' : 'none'}>
-        <RNPressable
+        <Pressable
           style={StyleSheet.absoluteFillObject}
           onPress={closeModal}
           disabled={!open}
@@ -412,7 +413,7 @@ function NavigationRail({
           accessibilityLabel="Close navigation rail"
         >
           <Animated.View style={[styles.scrim, modalScrimStyle]} />
-        </RNPressable>
+        </Pressable>
 
         <View style={styles.modalAnchor} pointerEvents="box-none">
           <Animated.View
@@ -441,9 +442,7 @@ function NavigationRailItem({ value: itemValue, accessibilityLabel, style, child
   const ew = ctx?.expandedWidth ?? EXPANDED_WIDTH_DEFAULT;
   const active = ctx ? ctx.value === itemValue : false;
 
-  const { progress, handlers } = useInteraction('press');
   const selectProgress = useSharedValue(active ? 1 : 0);
-  const animatedTheme = useAnimatedTheme();
 
   React.useEffect(() => {
     const theme = UnistylesRuntime.getTheme();
@@ -474,15 +473,6 @@ function NavigationRailItem({ value: itemValue, accessibilityLabel, style, child
     width: indW.value,
     height: indH.value,
     opacity: interpolate(selectProgress.value, [0, 0.3], [0, 1], Extrapolation.CLAMP),
-  }));
-
-  // --- State layer: same shape as indicator, press opacity ---
-  const stateLayerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: expandProgress.value * IND_DX }, { translateY: expandProgress.value * IND_DY }],
-    width: indW.value,
-    height: indH.value,
-    opacity: interpolate(progress.press.value, [0, 1], [0, animatedTheme.value.state.pressed], Extrapolation.CLAMP),
-    backgroundColor: active ? animatedTheme.value.scheme.onSecondaryContainer : animatedTheme.value.scheme.onSurface,
   }));
 
   // --- Icon: pure GPU transform (no layout animation) ---
@@ -528,10 +518,9 @@ function NavigationRailItem({ value: itemValue, accessibilityLabel, style, child
   const expandedLabelWidth = ew - E_LABEL_LEFT - (HORIZONTAL_LEADING_SPACE + INDICATOR_LEADING_SPACE);
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.itemContainer, style]}
       onPress={handlePress}
-      {...handlers}
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
       accessibilityLabel={accessibilityLabel}
@@ -541,7 +530,7 @@ function NavigationRailItem({ value: itemValue, accessibilityLabel, style, child
         <Animated.View style={[styles.indicatorBase, styles.indicatorPos, indicatorStyle]} />
 
         {/* State layer (same shape, press opacity) */}
-        <Animated.View style={[styles.stateLayerBase, styles.indicatorPos, stateLayerStyle]} />
+        <RailItemStateLayer expandProgress={expandProgress} indW={indW} indH={indH} selectProgress={selectProgress} />
 
         {/* Icon (pure GPU transform from collapsed position) */}
         <Animated.View style={[styles.iconPos, iconStyle]}>{iconChild}</Animated.View>
@@ -566,11 +555,44 @@ function NavigationRailItem({ value: itemValue, accessibilityLabel, style, child
           </Animated.View>
         )}
       </RailItemProvider>
-    </RNPressable>
+    </Pressable>
   );
 }
 
 NavigationRailItem.displayName = 'NavigationRailItem';
+
+function RailItemStateLayer({
+  expandProgress,
+  indW,
+  indH,
+  selectProgress,
+}: {
+  expandProgress: SharedValue<number>;
+  indW: SharedValue<number>;
+  indH: SharedValue<number>;
+  selectProgress: SharedValue<number>;
+}) {
+  const interaction = useInteraction();
+  const animatedTheme = useAnimatedTheme();
+
+  const stateLayerStyle = useAnimatedStyle(() => {
+    const t = animatedTheme.value;
+    const press = interaction?.effects.press.value ?? 0;
+    const hover = interaction?.effects.hover.value ?? 0;
+    const focus = interaction?.effects.focus.value ?? 0;
+    const drag = interaction?.effects.drag.value ?? 0;
+
+    return {
+      transform: [{ translateX: expandProgress.value * IND_DX }, { translateY: expandProgress.value * IND_DY }],
+      width: indW.value,
+      height: indH.value,
+      opacity: Math.max(drag * t.state.dragged, press * t.state.pressed, focus * t.state.focus, hover * t.state.hover),
+      backgroundColor: selectProgress.value > 0.5 ? t.scheme.onSecondaryContainer : t.scheme.onSurface,
+    };
+  });
+
+  return <Animated.View style={[styles.stateLayerBase, styles.indicatorPos, stateLayerStyle]} />;
+}
 
 // =============================================================================
 // NavigationRailIcon (icon — color changes based on active state)

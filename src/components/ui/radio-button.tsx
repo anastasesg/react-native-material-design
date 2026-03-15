@@ -6,7 +6,7 @@
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable as RNPressable, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   Easing,
   Extrapolation,
@@ -19,8 +19,9 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState, useInteraction } from '../../hooks';
+import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
+import { Pressable, useInteraction } from '../custom';
 import { Text, type TextProps } from './text';
 
 // =============================================================================
@@ -127,7 +128,6 @@ function RadioButtonGroup({
 type RadioButtonContextValue = {
   selected: boolean;
   disabled: boolean;
-  pressProgress: SharedValue<number>;
   selectProgress: SharedValue<number>;
 };
 
@@ -160,7 +160,6 @@ function RadioButton({
   });
   const selected = isInGroup ? group.value === itemValue : standaloneSelected;
 
-  const { progress, handlers } = useInteraction('press');
   const selectProgress = useSharedValue(selected ? 1 : 0);
 
   // Sync animation with value changes
@@ -188,17 +187,15 @@ function RadioButton({
     () => ({
       selected,
       disabled,
-      pressProgress: progress.press,
       selectProgress,
     }),
-    [selected, disabled, progress.press, selectProgress],
+    [selected, disabled, selectProgress],
   );
 
   return (
-    <RNPressable
+    <Pressable
       style={[styles.root, style]}
       onPress={handlePress}
-      {...handlers}
       disabled={disabled}
       accessibilityRole="radio"
       accessibilityState={{
@@ -208,7 +205,7 @@ function RadioButton({
       accessibilityLabel={accessibilityLabel}
     >
       <RadioButtonProvider value={ctx}>{children}</RadioButtonProvider>
-    </RNPressable>
+    </Pressable>
   );
 }
 
@@ -217,7 +214,8 @@ function RadioButton({
 // =============================================================================
 
 function RadioButtonToggle({ style, containerStyle }: RadioButtonToggleProps) {
-  const { selected, disabled, pressProgress, selectProgress } = useRadioButton();
+  const { selected, disabled, selectProgress } = useRadioButton();
+  const interaction = useInteraction();
 
   styles.useVariants({ selected, disabled });
 
@@ -225,7 +223,12 @@ function RadioButtonToggle({ style, containerStyle }: RadioButtonToggleProps) {
 
   // State layer opacity (press feedback)
   const animatedStateStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(pressProgress.value, [0, 1], [0, animatedTheme.value.state.pressed], Extrapolation.CLAMP),
+    opacity: interpolate(
+      interaction?.effects.press.value ?? 0,
+      [0, 1],
+      [0, animatedTheme.value.state.pressed],
+      Extrapolation.CLAMP,
+    ),
   }));
 
   // Inner dot scale animation
