@@ -138,6 +138,9 @@
     "expo-router": "^4"
   },
   "peerDependenciesMeta": {
+    "@react-navigation/native": {
+      "optional": true
+    },
     "expo-router": {
       "optional": true
     }

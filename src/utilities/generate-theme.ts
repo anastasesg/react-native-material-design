@@ -1,357 +1,167 @@
 import { argbFromHex, themeFromSourceColor } from '@material/material-color-utilities';
 
-import type { Elevation, Motion, MotionScheme, Shape, SpringSet, State, Theme, Typography } from '@/theme';
+import type { Motion, MotionScheme, Shape, State, Theme, Themes, Typography } from '@/theme';
 
+import { buildElevation, buildMotion, buildShape, buildState, buildTypography } from './defaults';
 import { generatePalettes } from './generate-pallettes';
 import { generateScheme } from './generate-scheme';
 import { getDynamicScheme } from './get-dynamic-scheme';
 
-export function generateTheme(dark: boolean, sourceColor: string, motionScheme: MotionScheme = 'expressive'): Theme {
-  const theme = themeFromSourceColor(argbFromHex(sourceColor));
-  const palettes = generatePalettes(theme.palettes);
+// ---------------------------------------------------------------------------
+// Options types
+// ---------------------------------------------------------------------------
 
-  const elevation: Elevation = {
-    0: { elevation: 0, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0, shadowRadius: 0 },
-    1: { elevation: 1, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2 },
-    2: { elevation: 3, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 4 },
-    3: { elevation: 6, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 10 },
-    4: { elevation: 8, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 13 },
-    5: { elevation: 12, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 18 },
-  };
+/** Options for generating a single theme (light or dark). */
+type GenerateThemeOptions = {
+  /** Whether to generate a dark theme. */
+  dark: boolean;
+  /** Hex color string used as the source for M3 dynamic color. @default '#6750A4' */
+  sourceColor?: string;
+  /** Motion scheme — controls spring bounciness. @default 'expressive' */
+  motionScheme?: MotionScheme;
+  /** Font family applied to all typography styles. @default 'Roboto' */
+  fontFamily?: string;
+  /** Deep-merged partial overrides applied after generation. */
+  overrides?: ThemeOverrides;
+};
 
-  const expressiveSprings: SpringSet = {
-    fastSpatial: { damping: 33.9, stiffness: 800 },
-    fastEffects: { damping: 123.3, stiffness: 3800 },
-    defaultSpatial: { damping: 31.2, stiffness: 380 },
-    defaultEffects: { damping: 80, stiffness: 1600 },
-    slowSpatial: { damping: 22.6, stiffness: 200 },
-    slowEffects: { damping: 56.6, stiffness: 800 },
-  };
+/** Options for generating both light and dark themes in one call. */
+type GenerateThemesOptions = Omit<GenerateThemeOptions, 'dark'> & {
+  /** Overrides applied only to the light theme (merged after shared overrides). */
+  lightOverrides?: ThemeOverrides;
+  /** Overrides applied only to the dark theme (merged after shared overrides). */
+  darkOverrides?: ThemeOverrides;
+};
 
-  const standardSprings: SpringSet = {
-    fastSpatial: { damping: 67.3, stiffness: 1400 },
-    fastEffects: { damping: 123.3, stiffness: 3800 },
-    defaultSpatial: { damping: 47.6, stiffness: 700 },
-    defaultEffects: { damping: 80, stiffness: 1600 },
-    slowSpatial: { damping: 31.2, stiffness: 300 },
-    slowEffects: { damping: 56.6, stiffness: 800 },
-  };
+/** Partial theme structure for deep-merge overrides. */
+type ThemeOverrides = {
+  shape?: Partial<Shape>;
+  state?: Partial<State>;
+  motion?: DeepPartial<Pick<Motion, 'springs' | 'easing' | 'duration'>>;
+};
 
-  const springs = { expressive: expressiveSprings, standard: standardSprings };
+type DeepPartial<T> = T extends Record<string, any> ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 
-  const motion: Motion = {
-    scheme: motionScheme,
-    spring: springs[motionScheme],
-    springs,
-    easing: {
-      emphasized: [0.2, 0, 0, 1],
-      emphasizedDecelerate: [0.05, 0.7, 0.1, 1],
-      emphasizedAccelerate: [0.3, 0, 0.8, 0.15],
-      standard: [0.2, 0, 0, 1],
-      standardDecelerate: [0, 0, 0, 1],
-      standardAccelerate: [0.3, 0, 1, 1],
-      legacy: [0.4, 0, 0.2, 1],
-      legacyAccelerate: [0.4, 0, 1, 1],
-      legacyDecelerate: [0, 0, 0.2, 1],
-      linear: [0, 0, 1, 1],
-    },
-    duration: {
-      short1: 50,
-      short2: 100,
-      short3: 150,
-      short4: 200,
-      medium1: 250,
-      medium2: 300,
-      medium3: 350,
-      medium4: 400,
-      long1: 450,
-      long2: 500,
-      long3: 550,
-      long4: 600,
-      extraLong1: 700,
-      extraLong2: 800,
-      extraLong3: 900,
-      extraLong4: 1000,
-    },
-  };
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
-  const state: State = {
-    hover: 0.08,
-    focus: 0.1,
-    pressed: 0.1,
-    dragged: 0.16,
-    disabledContainer: 0.12,
-    disabledContent: 0.38,
-  };
+const DEFAULT_SOURCE_COLOR = '#6750A4';
+const DEFAULT_FONT_FAMILY = 'Roboto';
 
-  const shape: Shape = {
-    none: 0,
-    xsmall: 4,
-    small: 8,
-    medium: 12,
-    large: 16,
-    largeIncreased: 20,
-    xlarge: 28,
-    xlargeIncreased: 32,
-    xxlarge: 48,
-    full: 9999,
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepMerge<T extends Record<string, unknown>>(target: T, source: Record<string, unknown>): T {
+  for (const key of Object.keys(source)) {
+    const sourceVal = source[key];
+    const targetVal = (target as Record<string, unknown>)[key];
+    if (isPlainObject(sourceVal) && isPlainObject(targetVal)) {
+      deepMerge(targetVal as Record<string, unknown>, sourceVal);
+    } else {
+      (target as Record<string, unknown>)[key] = sourceVal;
+    }
+  }
+  return target;
+}
+
+/** Recursively sets `fontFamily` on every TypographyStyle leaf. */
+function applyFontFamily(typography: Typography, fontFamily: string): void {
+  const walk = (obj: Record<string, unknown>) => {
+    for (const value of Object.values(obj)) {
+      if (!isPlainObject(value)) continue;
+      if ('fontFamily' in value && 'fontSize' in value) {
+        value.fontFamily = fontFamily;
+      } else {
+        walk(value);
+      }
+    }
   };
-  const typography: Typography = {
-    display: {
-      large: {
-        fontFamily: 'Roboto',
-        letterSpacing: -0.25,
-        fontWeight: '400',
-        lineHeight: 64,
-        fontSize: 57,
-      },
-      medium: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0,
-        fontWeight: '400',
-        lineHeight: 52,
-        fontSize: 45,
-      },
-      small: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0,
-        fontWeight: '400',
-        lineHeight: 44,
-        fontSize: 36,
-      },
-    },
-    headline: {
-      large: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0,
-        fontWeight: '400',
-        lineHeight: 40,
-        fontSize: 32,
-      },
-      medium: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0,
-        fontWeight: '400',
-        lineHeight: 36,
-        fontSize: 28,
-      },
-      small: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0,
-        fontWeight: '400',
-        lineHeight: 32,
-        fontSize: 24,
-      },
-    },
-    title: {
-      large: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0,
-        fontWeight: '400',
-        lineHeight: 28,
-        fontSize: 22,
-      },
-      medium: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.15,
-        fontWeight: '500',
-        lineHeight: 24,
-        fontSize: 16,
-      },
-      small: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.1,
-        fontWeight: '500',
-        lineHeight: 20,
-        fontSize: 14,
-      },
-    },
-    body: {
-      large: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.5,
-        fontWeight: '400',
-        lineHeight: 24,
-        fontSize: 16,
-      },
-      medium: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.25,
-        fontWeight: '400',
-        lineHeight: 20,
-        fontSize: 14,
-      },
-      small: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.4,
-        fontWeight: '400',
-        lineHeight: 16,
-        fontSize: 12,
-      },
-    },
-    label: {
-      large: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.1,
-        fontWeight: '500',
-        lineHeight: 20,
-        fontSize: 14,
-      },
-      largeProminent: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.1,
-        fontWeight: '700',
-        lineHeight: 20,
-        fontSize: 14,
-      },
-      medium: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.5,
-        fontWeight: '500',
-        lineHeight: 16,
-        fontSize: 12,
-      },
-      mediumProminent: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.5,
-        fontWeight: '700',
-        lineHeight: 16,
-        fontSize: 12,
-      },
-      small: {
-        fontFamily: 'Roboto',
-        letterSpacing: 0.5,
-        fontWeight: '500',
-        lineHeight: 16,
-        fontSize: 11,
-      },
-    },
-    emphasized: {
-      display: {
-        large: {
-          fontFamily: 'Roboto',
-          letterSpacing: -0.25,
-          fontWeight: '500',
-          lineHeight: 64,
-          fontSize: 57,
-        },
-        medium: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0,
-          fontWeight: '500',
-          lineHeight: 52,
-          fontSize: 45,
-        },
-        small: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0,
-          fontWeight: '500',
-          lineHeight: 44,
-          fontSize: 36,
-        },
-      },
-      headline: {
-        large: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0,
-          fontWeight: '500',
-          lineHeight: 40,
-          fontSize: 32,
-        },
-        medium: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0,
-          fontWeight: '500',
-          lineHeight: 36,
-          fontSize: 28,
-        },
-        small: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0,
-          fontWeight: '500',
-          lineHeight: 32,
-          fontSize: 24,
-        },
-      },
-      title: {
-        large: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0,
-          fontWeight: '500',
-          lineHeight: 28,
-          fontSize: 22,
-        },
-        medium: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0.15,
-          fontWeight: '700',
-          lineHeight: 24,
-          fontSize: 16,
-        },
-        small: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0.1,
-          fontWeight: '700',
-          lineHeight: 20,
-          fontSize: 14,
-        },
-      },
-      body: {
-        large: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0.5,
-          fontWeight: '500',
-          lineHeight: 24,
-          fontSize: 16,
-        },
-        medium: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0.25,
-          fontWeight: '500',
-          lineHeight: 20,
-          fontSize: 14,
-        },
-        small: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0.4,
-          fontWeight: '500',
-          lineHeight: 16,
-          fontSize: 12,
-        },
-      },
-      label: {
-        large: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0.1,
-          fontWeight: '700',
-          lineHeight: 20,
-          fontSize: 14,
-        },
-        medium: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0.5,
-          fontWeight: '700',
-          lineHeight: 16,
-          fontSize: 12,
-        },
-        small: {
-          fontFamily: 'Roboto',
-          letterSpacing: 0.5,
-          fontWeight: '700',
-          lineHeight: 16,
-          fontSize: 11,
-        },
-      },
-    },
-  };
+  walk(typography);
+}
+
+function applyOverrides(theme: Theme, overrides: ThemeOverrides): void {
+  if (overrides.shape) deepMerge(theme.shape, overrides.shape);
+  if (overrides.state) deepMerge(theme.state, overrides.state);
+  if (overrides.motion) {
+    deepMerge(theme.motion, overrides.motion);
+    theme.motion.spring = theme.motion.springs[theme.motion.scheme];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Core generation
+// ---------------------------------------------------------------------------
+
+function buildTheme(dark: boolean, sourceColor: string, motionScheme: MotionScheme, fontFamily: string): Theme {
+  const mcuTheme = themeFromSourceColor(argbFromHex(sourceColor));
+  const palettes = generatePalettes(mcuTheme.palettes);
+  const typography = buildTypography();
+  if (fontFamily !== DEFAULT_FONT_FAMILY) applyFontFamily(typography, fontFamily);
 
   return {
-    elevation,
-    motion,
-    shape,
-    scheme: generateScheme(getDynamicScheme(dark, theme)),
-    state,
+    elevation: buildElevation(),
+    motion: buildMotion(motionScheme),
+    shape: buildShape(),
+    scheme: generateScheme(getDynamicScheme(dark, mcuTheme)),
+    state: buildState(),
     pallettes: palettes,
     typography,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Generates a single M3 theme (light or dark).
+ *
+ * @example
+ * ```tsx
+ * const light = generateTheme({ dark: false, sourceColor: '#1B6B52' });
+ * const dark = generateTheme({ dark: true, sourceColor: '#1B6B52', fontFamily: 'Inter' });
+ * ```
+ */
+export function generateTheme(options: GenerateThemeOptions): Theme {
+  const theme = buildTheme(
+    options.dark,
+    options.sourceColor ?? DEFAULT_SOURCE_COLOR,
+    options.motionScheme ?? 'expressive',
+    options.fontFamily ?? DEFAULT_FONT_FAMILY,
+  );
+  if (options.overrides) applyOverrides(theme, options.overrides);
+  return theme;
+}
+
+/**
+ * Generates both light and dark M3 themes from a single set of options.
+ *
+ * @example
+ * ```tsx
+ * const { light, dark } = generateThemes({ sourceColor: '#1B6B52' });
+ *
+ * const { light, dark } = generateThemes({
+ *   sourceColor: '#1B6B52',
+ *   motionScheme: 'standard',
+ *   fontFamily: 'Inter',
+ *   overrides: { shape: { full: 100 } },
+ * });
+ * ```
+ */
+export function generateThemes(options: GenerateThemesOptions = {}): Themes {
+  const light = generateTheme({ ...options, dark: false });
+  const dark = generateTheme({ ...options, dark: true });
+
+  if (options.lightOverrides) applyOverrides(light, options.lightOverrides);
+  if (options.darkOverrides) applyOverrides(dark, options.darkOverrides);
+
+  return { light, dark };
+}
+
+export type { GenerateThemeOptions, GenerateThemesOptions, ThemeOverrides };

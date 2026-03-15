@@ -1,7 +1,8 @@
-import 'react-native-material-design/init';
 import 'expo-router/entry';
 
-import type { Breakpoints, Themes } from 'react-native-material-design';
+import { type Breakpoints, type Themes, configure } from 'react-native-material-design';
+
+configure({ sourceColor: '#ad355f' });
 
 declare module 'react-native-unistyles' {
   export interface UnistylesThemes extends Themes {}
