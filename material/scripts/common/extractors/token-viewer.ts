@@ -39,28 +39,25 @@ function extractTokensFromViewer(opts: {
   const groups = viewer.querySelectorAll('display-group-item');
   const parts: string[] = [];
 
-  groups.forEach((group) => {
-    const groupName = group.getAttribute('aria-label') || '';
-    const tokens = group.querySelectorAll('token[aria-label]');
-    if (tokens.length === 0) return;
+  // Build a token row from a single token element
+  function tokenRow(token: Element): string[] | null {
+    const displayName = token.querySelector('.display-name__text')?.textContent?.trim().replace(/\|/g, '\\|') || '';
+    const tokenKey =
+      token.querySelector('.token-name span')?.getAttribute('aria-label')?.trim() ||
+      token.querySelector('.token-name span')?.textContent?.trim() ||
+      '';
+    const ref = tokenKey ? opts.tokenRefs[tokenKey] : '';
+    const domValue =
+      token.querySelector('.token-value-container')?.textContent?.trim().replace(/\|/g, '\\|').replace(/\n/g, ' ') ||
+      '';
+    const dialogValue = tokenKey ? opts.tokenValues[tokenKey] || '' : '';
+    const value = ref || domValue || dialogValue;
+    return tokenKey ? [displayName, tokenKey, value] : null;
+  }
 
-    const rows: string[][] = [['Name', 'Token', 'Value']];
-
-    tokens.forEach((token) => {
-      const displayName = token.querySelector('.display-name__text')?.textContent?.trim().replace(/\|/g, '\\|') || '';
-      const tokenKey =
-        token.querySelector('.token-name span')?.getAttribute('aria-label')?.trim() ||
-        token.querySelector('.token-name span')?.textContent?.trim() ||
-        '';
-      const ref = tokenKey ? opts.tokenRefs[tokenKey] : '';
-      const domValue = token.querySelector('.token-value-container')?.textContent?.trim().replace(/\|/g, '\\|').replace(/\n/g, ' ') || '';
-      const dialogValue = tokenKey ? opts.tokenValues[tokenKey] || '' : '';
-      const value = ref || domValue || dialogValue;
-      if (tokenKey) rows.push([displayName, tokenKey, value]);
-    });
-
-    if (rows.length < 2) return;
-
+  // Build a markdown table from rows (including header)
+  function rowsToTable(rows: string[][], groupName?: string): string {
+    if (rows.length < 2) return '';
     let md = '';
     if (groupName) md += `**${groupName}**\n\n`;
     md +=
@@ -75,8 +72,39 @@ function extractTokensFromViewer(opts: {
         .map((r) => '| ' + r.join(' | ') + ' |')
         .join('\n') +
       '\n';
-    parts.push(md);
-  });
+    return md;
+  }
+
+  if (groups.length > 0) {
+    // Grouped layout: tokens inside display-group-item containers
+    groups.forEach((group) => {
+      const groupName = group.getAttribute('aria-label') || '';
+      const tokens = group.querySelectorAll('token[aria-label]');
+      if (tokens.length === 0) return;
+
+      const rows: string[][] = [['Name', 'Token', 'Value']];
+      tokens.forEach((token) => {
+        const row = tokenRow(token);
+        if (row) rows.push(row);
+      });
+
+      const md = rowsToTable(rows, groupName);
+      if (md) parts.push(md);
+    });
+  } else {
+    // Flat layout: tokens directly under the viewer (e.g. elevation, shape)
+    const tokens = viewer.querySelectorAll('token[aria-label]');
+    if (tokens.length > 0) {
+      const rows: string[][] = [['Name', 'Token', 'Value']];
+      tokens.forEach((token) => {
+        const row = tokenRow(token);
+        if (row) rows.push(row);
+      });
+
+      const md = rowsToTable(rows);
+      if (md) parts.push(md);
+    }
+  }
 
   return { name, content: parts.join('\n') };
 }
@@ -99,9 +127,59 @@ interface TokenDialogData {
  * element like easing curves or duration bars).
  */
 async function extractTokenDialogData(page: Page, viewer: Locator): Promise<TokenDialogData> {
-  const refs: Record<string, string> = {};
-  const values: Record<string, string> = {};
+  // Extract token values by clicking each token's value container in the browser
+  // context. Using DOM .click() instead of Playwright locator.click() because
+  // the Angular CDK dialog does not reliably open with Playwright's dispatched
+  // click events on certain tokens.
+  const result = await viewer.evaluate(async (viewerEl) => {
+    const refs: Record<string, string> = {};
+    const values: Record<string, string> = {};
 
+    const tokens = Array.from(viewerEl.querySelectorAll('token[aria-label]'));
+
+    for (const token of tokens) {
+      const span = token.querySelector('.token-name span');
+      const tokenKey = span?.getAttribute('aria-label')?.trim() || span?.textContent?.trim() || '';
+      if (!tokenKey) continue;
+
+      const vc = token.querySelector('.token-value-container') as HTMLElement | null;
+      if (!vc) continue;
+
+      vc.click();
+      await new Promise((r) => setTimeout(r, 500));
+
+      const dialog = document.querySelector('token-detail-panel-dialog');
+      if (!dialog || (dialog as HTMLElement).offsetParent === null) continue;
+
+      // System-level token reference (component → system mapping)
+      const refEl = dialog.querySelector('.resolution-token-name');
+      if (refEl?.textContent?.trim()) {
+        refs[tokenKey] = refEl.textContent.trim();
+      }
+
+      // Resolved value (e.g. "12dp", "#6750A4", "0")
+      if (!refEl?.textContent?.trim()) {
+        const resEl = dialog.querySelector('.resolution-text');
+        if (resEl?.textContent?.trim()) {
+          values[tokenKey] = resEl.textContent.trim();
+        }
+      }
+
+      // Close dialog
+      const closeBtn = dialog.querySelector('button[aria-label="Close dialog"]') as HTMLElement | null;
+      if (closeBtn) {
+        closeBtn.click();
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
+
+    return { refs, values };
+  });
+
+  // Second pass: for tokens with no value from the browser-context extraction,
+  // try Playwright-based dialog interaction for visual-only values (SVG curves,
+  // duration bars) that need parseDialogValue().
+  const missingKeys: string[] = [];
   const tokenKeys = await viewer.evaluate((el) => {
     const tokens = el.querySelectorAll('token[aria-label]');
     return Array.from(tokens)
@@ -112,53 +190,47 @@ async function extractTokenDialogData(page: Page, viewer: Locator): Promise<Toke
       .filter(Boolean);
   });
 
-  for (let i = 0; i < tokenKeys.length; i++) {
-    const tokenKey = tokenKeys[i]!;
-
-    const tokenEl = viewer.locator('token[aria-label]').nth(i);
-    const valueEl = tokenEl.locator('.token-value-container').first();
-
-    try {
-      await valueEl.click({ timeout: 2000, force: true });
-    } catch {
-      continue;
+  for (const key of tokenKeys) {
+    if (!result.refs[key] && !result.values[key]) {
+      // Check if the DOM value is non-empty (already captured by extractTokensFromViewer)
+      missingKeys.push(key);
     }
-
-    const dialogPanel = page.locator('token-detail-panel-dialog');
-    try {
-      await dialogPanel.waitFor({ state: 'visible', timeout: 1000 });
-    } catch {
-      continue;
-    }
-
-    // System-level token reference (component → system mapping)
-    const refText = await dialogPanel
-      .locator('.resolution-token-name')
-      .first()
-      .textContent({ timeout: 500 })
-      .catch(() => null);
-    if (refText?.trim()) {
-      refs[tokenKey] = refText.trim();
-    }
-
-    // Dialog value extraction — for tokens rendered as visuals (SVG curves,
-    // duration bars, motion paths), the detail dialog contains the actual
-    // value as text. Extract it from the dialog's full text content.
-    if (!refText?.trim()) {
-      const dialogText = await dialogPanel
-        .evaluate((el) => el.textContent?.trim() || '')
-        .catch(() => '');
-      const parsed = parseDialogValue(dialogText);
-      if (parsed) {
-        values[tokenKey] = parsed;
-      }
-    }
-
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(50);
   }
 
-  return { refs, values };
+  if (missingKeys.length > 0) {
+    for (let i = 0; i < tokenKeys.length; i++) {
+      const tokenKey = tokenKeys[i]!;
+      if (!missingKeys.includes(tokenKey)) continue;
+
+      const tokenEl = viewer.locator('token[aria-label]').nth(i);
+      const valueEl = tokenEl.locator('.token-value-container').first();
+
+      try {
+        await valueEl.click({ timeout: 2000, force: true });
+      } catch {
+        continue;
+      }
+
+      const dialogPanel = page.locator('token-detail-panel-dialog');
+      try {
+        await dialogPanel.waitFor({ state: 'visible', timeout: 2000 });
+      } catch {
+        continue;
+      }
+
+      const dialogText = await dialogPanel.evaluate((el) => el.textContent?.trim() || '').catch(() => '');
+      const parsed = parseDialogValue(dialogText);
+      if (parsed) {
+        result.values[tokenKey] = parsed;
+      }
+
+      await page.keyboard.press('Escape');
+      await dialogPanel.waitFor({ state: 'hidden', timeout: 1000 }).catch(() => {});
+      await page.waitForTimeout(100);
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -195,11 +267,7 @@ function parseDialogValue(text: string): string | null {
  * Extract all token sets from a single `.main-token-viewer` instance.
  * Opens the dropdown, iterates options, expands groups, reads tokens.
  */
-async function extractViewerTokenSets(
-  page: Page,
-  viewer: Locator,
-  viewerIndex: number,
-): Promise<string[]> {
+async function extractViewerTokenSets(page: Page, viewer: Locator, viewerIndex: number): Promise<string[]> {
   const dropdownBtn = viewer.locator('.active-token-set-button');
 
   if (!(await dropdownBtn.isVisible().catch(() => false))) {

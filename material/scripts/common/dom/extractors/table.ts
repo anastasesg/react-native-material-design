@@ -2,6 +2,32 @@
 // Table extraction — markdown tables from <table> elements
 // ---------------------------------------------------------------------------
 
+/**
+ * Collect text segments from a cell, inserting separators between
+ * block-level children (li, div, p, br) so items don't concatenate.
+ */
+function collectCellText(el: Element): string {
+  const listItems = el.querySelectorAll('li');
+  if (listItems.length > 0) {
+    return Array.from(listItems)
+      .map((li) => li.textContent?.trim() || '')
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  // Check for block-level children (divs, paragraphs) acting as item separators
+  const blocks = Array.from(el.children).filter((child) => {
+    const tag = child.tagName.toLowerCase();
+    return tag === 'div' || tag === 'p' || tag === 'span';
+  });
+  if (blocks.length > 1) {
+    const texts = blocks.map((b) => b.textContent?.trim() || '').filter(Boolean);
+    if (texts.length > 1) return texts.join(', ');
+  }
+
+  return (el.textContent ?? '').trim();
+}
+
 export function extractCellContent(cell: Element): string {
   const labeled = cell.querySelector('[aria-label]');
   const label = labeled?.getAttribute('aria-label') || '';
@@ -13,7 +39,7 @@ export function extractCellContent(cell: Element): string {
     if (href && linkText) return `[${linkText}](${href})`;
   }
 
-  const raw = label || (cell.textContent ?? '').trim();
+  const raw = label || collectCellText(cell);
   return raw.replace(/\|/g, '\\|').replace(/\n/g, ' ');
 }
 

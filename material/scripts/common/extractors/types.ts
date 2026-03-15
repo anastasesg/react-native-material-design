@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Page } from 'playwright';
+
 import type { ExtractionResult } from '../types';
 
 /** A section of markdown produced by a component extractor. */

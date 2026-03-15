@@ -18,10 +18,7 @@ import type { ComponentSection } from './types';
  *   body (up to the next same-level heading) with the extracted content.
  * - If `targetHeading` is not found or is null, appends to the end.
  */
-export function mergeComponentSections(
-  result: ExtractionResult,
-  sections: ComponentSection[],
-): ExtractionResult {
+export function mergeComponentSections(result: ExtractionResult, sections: ComponentSection[]): ExtractionResult {
   let markdown = result.markdown;
 
   for (const section of sections) {
@@ -87,15 +84,7 @@ function replaceSectionBody(markdown: string, headingText: string, newBody: stri
   const cleanIntro =
     introText.length > 0 && introText.length < 300 && !introText.includes('expand_all') ? introText : '';
 
-  return (
-    preSection +
-    '\n' +
-    (cleanIntro ? cleanIntro + '\n\n' : '') +
-    '---\n\n' +
-    newBody +
-    '\n' +
-    postSection
-  );
+  return preSection + '\n' + (cleanIntro ? cleanIntro + '\n\n' : '') + '---\n\n' + newBody + '\n' + postSection;
 }
 
 function escapeRegex(str: string): string {
