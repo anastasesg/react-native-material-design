@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import { I18nManager, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
-import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { StyleSheet } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import type { Shape } from '@/theme';
 
+import { useMotionConfig } from '../../hooks';
 import { useInteraction } from './pressable';
 
 // ---------------------------------------------------------------------------
@@ -119,7 +120,7 @@ function normalizeShape(shape: ShapeSpec): PerCornerShape {
 function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps) {
   const progress = useInteraction();
   const animatedTheme = useAnimatedTheme();
-  const reduceMotion = useReducedMotion();
+  const motion = useMotionConfig('fast');
   const containerHeight = useSharedValue(0);
 
   // Mirror into shared values so the UI-thread worklet always reads current data
@@ -130,7 +131,7 @@ function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps)
 
   // Detect rest shape changes and animate the transition.
   // Uses useEffect to avoid writing .value during render (Reanimated strict mode).
-  // When reduceMotion is active, snap directly without spring interpolation.
+  // When reduced motion is active, snap directly without spring interpolation.
   const prevShapeRef = React.useRef(shape);
   React.useEffect(() => {
     if (prevShapeRef.current !== shape) {
@@ -143,7 +144,7 @@ function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps)
         prev.bottomStart !== next.bottomStart ||
         prev.bottomEnd !== next.bottomEnd;
       if (changed) {
-        if (reduceMotion) {
+        if (motion.reducedMotion) {
           // Snap: skip animation, jump directly to target
           restCornersShared.value = next;
           restProgress.value = 1;
@@ -151,17 +152,14 @@ function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps)
           prevRestCornersShared.value = restCornersShared.value;
           restCornersShared.value = next;
           restProgress.value = 0;
-          const theme = UnistylesRuntime.getTheme();
-          const scheme = theme.motion.scheme;
-          const spring = theme.motion.springs[scheme].fastSpatial;
-          restProgress.value = withSpring(1, spring);
+          restProgress.value = withSpring(1, motion.spatial.value);
         }
       } else {
         restCornersShared.value = next;
       }
       prevShapeRef.current = shape;
     }
-  }, [shape, normalized, reduceMotion, restCornersShared, prevRestCornersShared, restProgress]);
+  }, [shape, normalized, motion.spatial, motion.reducedMotion, restCornersShared, prevRestCornersShared, restProgress]);
 
   // Pre-normalize interaction shapes so the worklet doesn't call normalizeShape
   type NormalizedShapes = {

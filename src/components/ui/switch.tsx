@@ -16,10 +16,10 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { StyleSheet, UnistylesRuntime, withUnistyles } from 'react-native-unistyles';
+import { StyleSheet, withUnistyles } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState } from '../../hooks';
+import { useControllableState, useMotionConfig } from '../../hooks';
 import { createComponentContext } from '../../utilities';
 import { Pressable, useInteraction } from '../custom';
 import { Icon } from './icon';
@@ -117,12 +117,12 @@ function Switch({
   });
 
   const selectProgress = useSharedValue(selected ? 1 : 0);
+  const motion = useMotionConfig('fast');
 
   // Sync animation with value changes
   React.useEffect(() => {
-    const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    selectProgress.value = withSpring(selected ? 1 : 0, fastEffects);
-  }, [selected, selectProgress]);
+    selectProgress.value = withSpring(selected ? 1 : 0, motion.effects.value);
+  }, [selected, selectProgress, motion.effects]);
 
   const handlePress = React.useCallback(() => {
     if (disabled) return;

@@ -9,9 +9,9 @@ import type { LayoutChangeEvent, StyleProp, TextLayoutEvent, ViewStyle } from 'r
 import { View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 
-import { useControllableState } from '../../hooks';
+import { useControllableState, useMotionConfig } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
 import { Pressable, StateLayer } from '../custom';
 import { Icon } from './icon';
@@ -108,6 +108,7 @@ function Snackbar({
 
   // open/mounted decoupling: `mounted` keeps component in tree during exit animation
   const [mounted, setMounted] = React.useState(false);
+  const motion = useMotionConfig('fast');
 
   // Whether the action text overflows and needs its own line
   const [actionOnOwnLine, setActionOnOwnLine] = React.useState(false);
@@ -171,16 +172,15 @@ function Snackbar({
 
   // Animate in/out based on `open`
   React.useEffect(() => {
-    const springs = UnistylesRuntime.getTheme().motion.spring;
     if (open) {
       setMounted(true);
       setActionOnOwnLine(false);
       setIsTwoLine(false);
-      translateY.value = withSpring(0, springs.fastEffects);
-      opacity.value = withSpring(1, springs.fastEffects);
+      translateY.value = withSpring(0, motion.effects.value);
+      opacity.value = withSpring(1, motion.effects.value);
     } else if (mounted) {
-      translateY.value = withSpring(80, springs.fastEffects, onCloseAnimationEnd);
-      opacity.value = withSpring(0, springs.fastEffects);
+      translateY.value = withSpring(80, motion.effects.value, onCloseAnimationEnd);
+      opacity.value = withSpring(0, motion.effects.value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -199,7 +199,6 @@ function Snackbar({
 
   // Swipe-to-dismiss via RNGH (runs on UI thread)
   const dragStartY = useSharedValue(0);
-  const springs = UnistylesRuntime.getTheme().motion.spring;
 
   const dismissGesture = Gesture.Pan()
     .activeOffsetY(10)
@@ -219,8 +218,8 @@ function Snackbar({
         runOnJS(dismiss)();
       } else {
         // Snap back with spring + velocity carry-through
-        translateY.value = withSpring(0, { ...springs.fastEffects, velocity: e.velocityY });
-        opacity.value = withSpring(1, springs.fastEffects);
+        translateY.value = withSpring(0, { ...motion.effects.value, velocity: e.velocityY });
+        opacity.value = withSpring(1, motion.effects.value);
       }
     });
 

@@ -14,10 +14,10 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { useControllableState } from '../../hooks';
+import { useControllableState, useMotionConfig } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
 import { Pressable } from '../custom';
 import { Divider } from './divider';
@@ -155,13 +155,14 @@ function SideSheet({
     }
   }, []);
 
+  const motion = useMotionConfig('fast');
+
   React.useEffect(() => {
-    const { fastSpatial, fastEffects } = UnistylesRuntime.getTheme().motion.spring;
     if (isOpen) {
       setVisible(true);
-      progress.value = withSpring(1, fastSpatial);
+      progress.value = withSpring(1, motion.spatial.value);
     } else {
-      progress.value = withSpring(0, fastEffects, onCloseAnimationEnd);
+      progress.value = withSpring(0, motion.effects.value, onCloseAnimationEnd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);

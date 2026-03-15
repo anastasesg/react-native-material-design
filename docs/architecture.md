@@ -410,13 +410,18 @@ if (progress) {
 }
 ```
 
-### useMotionValue / useMotionTransition
+### useMotionConfig
 
-Helpers for animating between discrete M3 token values using the theme's spring system.
+Centralized spring config resolution for all animations. Returns `{ effects, spatial }` — SharedValues containing the resolved spring configs for use with `withSpring` on either thread. Handles speed-to-spring-key mapping, motion scheme resolution, and reduced motion (spatial springs snap near-instantly, effect springs use faster fades).
 
-### usePresence / usePresenceTransition
+```tsx
+const motion = useMotionConfig('fast', scheme);
+value.value = withSpring(target, motion.effects.value);
+```
 
-Mount/unmount animation hooks — track a boolean `present` state and animate enter/exit transitions, deferring unmount until the exit animation completes.
+### usePresence
+
+Mount/unmount lifecycle hook — tracks a boolean `present` state and defers unmount until exit animations complete.
 
 ---
 

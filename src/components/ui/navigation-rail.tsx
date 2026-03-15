@@ -21,7 +21,7 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
-import { useControllableState } from '../../hooks';
+import { useControllableState, useMotionConfig } from '../../hooks';
 import { createComponentContext } from '../../utilities';
 import { Pressable, useInteraction } from '../custom';
 import { Icon, type IconProps } from './icon';
@@ -229,6 +229,7 @@ function NavigationRail({
   }, [expandedWidthProp]);
 
   const isModal = mode === 'modal';
+  const motion = useMotionConfig('fast');
 
   // --- Controlled/uncontrolled open (expanded) state ---
   const [open, setOpen] = useControllableState({
@@ -275,9 +276,8 @@ function NavigationRail({
   React.useEffect(() => {
     if (isModal) return;
 
-    const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    expandProgress.value = withSpring(open ? 1 : 0, fastEffects);
-  }, [open, isModal, expandProgress]);
+    expandProgress.value = withSpring(open ? 1 : 0, motion.effects.value);
+  }, [open, isModal, expandProgress, motion.effects]);
 
   // --- Modal mode: uses same expandProgress as standard, no mount/unmount ---
   const modalExpandProgress = useSharedValue(0);
@@ -317,8 +317,7 @@ function NavigationRail({
   React.useEffect(() => {
     if (!isModal) return;
 
-    const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    modalExpandProgress.value = withSpring(open ? 1 : 0, fastEffects);
+    modalExpandProgress.value = withSpring(open ? 1 : 0, motion.effects.value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

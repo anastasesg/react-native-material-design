@@ -16,11 +16,12 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { StyleSheet, UnistylesRuntime, withUnistyles } from 'react-native-unistyles';
+import { StyleSheet, withUnistyles } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import type { TypographyStyle } from '@/theme/typography';
 
+import { useMotionConfig } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
 import { Icon, type MaterialSymbol } from './icon';
 import { IconButton, IconButtonIcon } from './icon-button';
@@ -193,19 +194,18 @@ function TextField({
   const progress = useSharedValue(0);
   // focusProgress: 0 = unfocused, 1 = focused (drives border thickness animation)
   const focusProgress = useSharedValue(0);
+  const motion = useMotionConfig('fast');
 
   const handleFocus = React.useCallback(() => {
     setIsFocused(true);
-    const { fastEffects, fastSpatial } = UnistylesRuntime.getTheme().motion.spring;
-    focusProgress.value = withSpring(1, fastEffects);
-    progress.value = withSpring(1, fastSpatial);
-  }, [progress, focusProgress]);
+    focusProgress.value = withSpring(1, motion.effects.value);
+    progress.value = withSpring(1, motion.spatial.value);
+  }, [progress, focusProgress, motion.effects, motion.spatial]);
 
   const handleBlur = React.useCallback(() => {
     setIsFocused(false);
-    const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-    focusProgress.value = withSpring(0, fastEffects);
-  }, [focusProgress]);
+    focusProgress.value = withSpring(0, motion.effects.value);
+  }, [focusProgress, motion.effects]);
 
   // Sort children into slots
   let leadingIconSlot: React.ReactElement | null = null;
@@ -250,13 +250,12 @@ function TextField({
   }, [inputValue]);
 
   React.useEffect(() => {
-    const { fastSpatial } = UnistylesRuntime.getTheme().motion.spring;
     if (hasValue) {
-      progress.value = withSpring(1, fastSpatial);
+      progress.value = withSpring(1, motion.spatial.value);
     } else if (!isFocused) {
-      progress.value = withSpring(0, fastSpatial);
+      progress.value = withSpring(0, motion.spatial.value);
     }
-  }, [hasValue, isFocused, progress]);
+  }, [hasValue, isFocused, progress, motion.spatial]);
 
   const ctx = React.useMemo<TextFieldContextValue>(
     () => ({

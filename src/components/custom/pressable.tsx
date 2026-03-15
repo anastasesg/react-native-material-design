@@ -10,11 +10,13 @@ import type {
 } from 'react-native-gesture-handler';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { type SharedValue, useSharedValue, withSpring } from 'react-native-reanimated';
-import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import type { MotionScheme, SpringSet, Theme } from '@/theme';
+import type { MotionScheme } from '@/theme';
 import { createOptionalComponentContext } from '@/utilities';
+
+import { type MotionSpeed, useMotionConfig } from '../../hooks';
 
 // ---------------------------------------------------------------------------
 // Event types — re-exported for consumers
@@ -57,26 +59,6 @@ type InteractionProgress = {
 };
 
 const [InteractionProvider, useInteraction] = createOptionalComponentContext<InteractionProgress>('Interaction');
-
-// ---------------------------------------------------------------------------
-// Spring key helpers
-// ---------------------------------------------------------------------------
-
-/** Controls which speed tier of springs to use for interaction animations. */
-type MotionSpeed = 'fast' | 'default' | 'slow';
-
-/** Maps (speed, kind) to the corresponding spring key on SpringSet. */
-function springKey(speed: MotionSpeed, kind: 'effects' | 'spatial'): keyof SpringSet {
-  if (speed === 'fast') return kind === 'effects' ? 'fastEffects' : 'fastSpatial';
-  if (speed === 'slow') return kind === 'effects' ? 'slowEffects' : 'slowSpatial';
-  return kind === 'effects' ? 'defaultEffects' : 'defaultSpatial';
-}
-
-/** Resolves the spring config for a given speed tier and kind (effects/spatial). */
-function resolveSpring(theme: Theme, speed: MotionSpeed, kind: 'effects' | 'spatial', scheme?: MotionScheme) {
-  const s = scheme ?? theme.motion.scheme;
-  return theme.motion.springs[s][springKey(speed, kind)];
-}
 
 // ---------------------------------------------------------------------------
 // PressableProps
@@ -220,22 +202,8 @@ function Pressable({
   // gesture can skip the duplicate onPress call.
   const keyboardActive = useSharedValue(0);
 
-  // Resolve spring configs on JS thread (reliable) and share with UI thread worklets.
-  // Reading nested theme properties via useAnimatedTheme() inside worklets may not
-  // serialize correctly across the JS/UI bridge, causing withSpring to use slow defaults.
-  const initTheme = UnistylesRuntime.getTheme();
-  const effectsConfig = useSharedValue(resolveSpring(initTheme, speed, 'effects', scheme));
-  const spatialConfig = useSharedValue(resolveSpring(initTheme, speed, 'spatial', scheme));
-  // Sync shared values when speed/scheme changes — done in useEffect to avoid
-  // writing to .value during render (Reanimated strict mode violation).
-  // Deps use only the primitive props (not the theme object, which is a fresh reference
-  // every render from UnistylesRuntime.getTheme()). Theme changes are rare and handled
-  // by unistyles' own reactivity — the spring configs only depend on speed/scheme.
-  React.useEffect(() => {
-    const theme = UnistylesRuntime.getTheme();
-    effectsConfig.value = resolveSpring(theme, speed, 'effects', scheme);
-    spatialConfig.value = resolveSpring(theme, speed, 'spatial', scheme);
-  }, [effectsConfig, spatialConfig, speed, scheme]);
+  // Spring configs — centralized via useMotionConfig, available on both JS and UI threads.
+  const motion = useMotionConfig(speed, scheme);
 
   // Normalize hitSlop to Insets once — used by both gesture handlers and the native View
   // (TalkBack uses View bounds, not gesture hitSlop)
@@ -251,8 +219,8 @@ function Pressable({
     .hitSlop(hitSlopInsets ?? 0)
     .onBegin((e) => {
       'worklet';
-      ePress.value = withSpring(1, effectsConfig.value);
-      sPress.value = withSpring(1, spatialConfig.value);
+      ePress.value = withSpring(1, motion.effects.value);
+      sPress.value = withSpring(1, motion.spatial.value);
       if (onPressIn) scheduleOnRN(onPressIn, e);
     })
     .onEnd((e) => {
@@ -263,8 +231,8 @@ function Pressable({
     })
     .onFinalize((e) => {
       'worklet';
-      ePress.value = withSpring(0, effectsConfig.value);
-      sPress.value = withSpring(0, spatialConfig.value);
+      ePress.value = withSpring(0, motion.effects.value);
+      sPress.value = withSpring(0, motion.spatial.value);
       if (onPressOut) scheduleOnRN(onPressOut, e);
     });
 
@@ -284,14 +252,14 @@ function Pressable({
     .enabled(!disabled)
     .onBegin((e) => {
       'worklet';
-      eHover.value = withSpring(1, effectsConfig.value);
-      sHover.value = withSpring(1, spatialConfig.value);
+      eHover.value = withSpring(1, motion.effects.value);
+      sHover.value = withSpring(1, motion.spatial.value);
       if (onHoverIn) scheduleOnRN(onHoverIn, e);
     })
     .onFinalize((e) => {
       'worklet';
-      eHover.value = withSpring(0, effectsConfig.value);
-      sHover.value = withSpring(0, spatialConfig.value);
+      eHover.value = withSpring(0, motion.effects.value);
+      sHover.value = withSpring(0, motion.spatial.value);
       if (onHoverOut) scheduleOnRN(onHoverOut, e);
     });
 
@@ -302,13 +270,13 @@ function Pressable({
     .enabled(!disabled && draggable)
     .onStart(() => {
       'worklet';
-      eDrag.value = withSpring(1, effectsConfig.value);
-      sDrag.value = withSpring(1, spatialConfig.value);
+      eDrag.value = withSpring(1, motion.effects.value);
+      sDrag.value = withSpring(1, motion.spatial.value);
     })
     .onFinalize(() => {
       'worklet';
-      eDrag.value = withSpring(0, effectsConfig.value);
-      sDrag.value = withSpring(0, spatialConfig.value);
+      eDrag.value = withSpring(0, motion.effects.value);
+      sDrag.value = withSpring(0, motion.spatial.value);
     });
 
   // --- Compose gestures ---
@@ -332,16 +300,16 @@ function Pressable({
       onFocus?.(e);
       return;
     }
-    eFocus.value = withSpring(1, effectsConfig.value);
-    sFocus.value = withSpring(1, spatialConfig.value);
+    eFocus.value = withSpring(1, motion.effects.value);
+    sFocus.value = withSpring(1, motion.spatial.value);
     onFocus?.(e);
-  }, [eFocus, ePress, eHover, sFocus, onFocus, effectsConfig, spatialConfig]);
+  }, [eFocus, ePress, eHover, sFocus, onFocus, motion.effects, motion.spatial]);
 
   const handleBlur = React.useCallback((e: NativeSyntheticEvent<TargetedEvent>) => {
-    eFocus.value = withSpring(0, effectsConfig.value);
-    sFocus.value = withSpring(0, spatialConfig.value);
+    eFocus.value = withSpring(0, motion.effects.value);
+    sFocus.value = withSpring(0, motion.spatial.value);
     onBlur?.(e);
-  }, [eFocus, sFocus, onBlur, effectsConfig, spatialConfig]);
+  }, [eFocus, sFocus, onBlur, motion.effects, motion.spatial]);
 
   const progress = useMemo<InteractionProgress>(
     () => ({
@@ -363,12 +331,12 @@ function Pressable({
       e.preventDefault?.();
       if (!e.repeat) {
         keyboardActive.value = 1;
-        ePress.value = withSpring(1, effectsConfig.value);
-        sPress.value = withSpring(1, spatialConfig.value);
+        ePress.value = withSpring(1, motion.effects.value);
+        sPress.value = withSpring(1, motion.spatial.value);
         if (onPressIn) onPressIn({} as TapEvent);
       }
     }
-  }, [disabled, keyboardActive, ePress, sPress, effectsConfig, spatialConfig, onPressIn]);
+  }, [disabled, keyboardActive, ePress, sPress, motion.effects, motion.spatial, onPressIn]);
 
   const handleKeyUp = React.useCallback((e: any) => {
     if (disabled) return;
@@ -377,8 +345,8 @@ function Pressable({
       // Fire onPress first (matches gesture onEnd → onFinalize order)
       onPress?.({} as TapEvent);
       // Then release press animation (matches gesture onFinalize)
-      ePress.value = withSpring(0, effectsConfig.value);
-      sPress.value = withSpring(0, spatialConfig.value);
+      ePress.value = withSpring(0, motion.effects.value);
+      sPress.value = withSpring(0, motion.spatial.value);
       if (onPressOut) onPressOut({} as TapEvent);
       // Clear keyboard guard after the synthetic click would have fired.
       // requestAnimationFrame ensures the guard is still active when the browser
@@ -387,7 +355,7 @@ function Pressable({
         keyboardActive.value = 0;
       });
     }
-  }, [disabled, onPress, onPressOut, keyboardActive, ePress, sPress, effectsConfig, spatialConfig]);
+  }, [disabled, onPress, onPressOut, keyboardActive, ePress, sPress, motion.effects, motion.spatial]);
 
   // Suppress synthetic click events generated by the browser after Enter/Space keyup
   // on role="button" elements. Without this, RNGH's tap gesture captures the synthetic

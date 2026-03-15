@@ -15,12 +15,12 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useControllableState } from '../../hooks';
+import { useControllableState, useMotionConfig } from '../../hooks';
 import { Pressable, StateLayer } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { IconButton, IconButtonIcon } from './icon-button';
@@ -301,17 +301,18 @@ function TimePicker({
     }
   }, []);
 
+  const motion = useMotionConfig('fast');
+
   React.useEffect(() => {
-    const { fastSpatial, fastEffects } = UnistylesRuntime.getTheme().motion.spring;
     if (open) {
       setMounted(true);
-      scrimOpacity.value = withSpring(SCRIM_OPACITY, fastEffects);
-      containerScale.value = withSpring(1, fastSpatial);
-      containerOpacity.value = withSpring(1, fastEffects);
+      scrimOpacity.value = withSpring(SCRIM_OPACITY, motion.effects.value);
+      containerScale.value = withSpring(1, motion.spatial.value);
+      containerOpacity.value = withSpring(1, motion.effects.value);
     } else if (mounted) {
-      scrimOpacity.value = withSpring(0, fastEffects);
-      containerScale.value = withSpring(0.9, fastEffects);
-      containerOpacity.value = withSpring(0, fastEffects, onCloseAnimationEnd);
+      scrimOpacity.value = withSpring(0, motion.effects.value);
+      containerScale.value = withSpring(0.9, motion.effects.value);
+      containerOpacity.value = withSpring(0, motion.effects.value, onCloseAnimationEnd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

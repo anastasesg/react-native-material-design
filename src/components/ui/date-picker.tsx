@@ -8,11 +8,11 @@ import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Modal, ScrollView, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 
 import type { Scheme } from '@/theme/scheme';
 
-import { useControllableState } from '../../hooks';
+import { useControllableState, useMotionConfig } from '../../hooks';
 import { Pressable, StateLayer } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { Divider } from './divider';
@@ -476,17 +476,18 @@ function DatePicker({
     }
   }, []);
 
+  const motion = useMotionConfig('fast');
+
   React.useEffect(() => {
-    const { fastSpatial, fastEffects } = UnistylesRuntime.getTheme().motion.spring;
     if (open) {
       setMounted(true);
-      scrimOpacity.value = withSpring(SCRIM_OPACITY, fastEffects);
-      containerScale.value = withSpring(1, fastSpatial);
-      containerOpacity.value = withSpring(1, fastEffects);
+      scrimOpacity.value = withSpring(SCRIM_OPACITY, motion.effects.value);
+      containerScale.value = withSpring(1, motion.spatial.value);
+      containerOpacity.value = withSpring(1, motion.effects.value);
     } else if (mounted) {
-      scrimOpacity.value = withSpring(0, fastEffects);
-      containerScale.value = withSpring(0.9, fastEffects);
-      containerOpacity.value = withSpring(0, fastEffects, onCloseAnimationEnd);
+      scrimOpacity.value = withSpring(0, motion.effects.value);
+      containerScale.value = withSpring(0.9, motion.effects.value);
+      containerOpacity.value = withSpring(0, motion.effects.value, onCloseAnimationEnd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

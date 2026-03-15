@@ -166,22 +166,24 @@ Two mechanisms prevent this:
 
 ## Spring Resolution
 
-Springs are resolved once on the JS thread and shared with worklets via SharedValues:
+Spring configs are resolved via the centralized `useMotionConfig` hook and provided as SharedValues for use on both JS and UI threads:
 
 ```tsx
-const effectsConfig = useSharedValue(resolveSpring(theme, speed, 'effects', scheme));
-const spatialConfig = useSharedValue(resolveSpring(theme, speed, 'spatial', scheme));
+const motion = useMotionConfig(speed, scheme);
+
+// In gesture callbacks / useEffect:
+ePress.value = withSpring(1, motion.effects.value);
+sPress.value = withSpring(1, motion.spatial.value);
 ```
 
+`useMotionConfig` handles:
+
+- Mapping the `speed` prop (`'fast'` / `'default'` / `'slow'`) to the correct spring keys
+- Resolving the active motion scheme (expressive/standard) from the theme
+- Reduced motion — spatial springs become near-instant snaps, effect springs become fast fades
+- Re-resolving when `speed`, `scheme`, or reduced motion preference changes
+
 This avoids reading nested theme properties inside worklets — Reanimated's JS/UI bridge may not serialize deeply nested objects correctly, causing `withSpring` to fall back to slow defaults.
-
-### Speed → Spring Key Mapping
-
-| Speed       | Effects Key      | Spatial Key      |
-| ----------- | ---------------- | ---------------- |
-| `'fast'`    | `fastEffects`    | `fastSpatial`    |
-| `'default'` | `defaultEffects` | `defaultSpatial` |
-| `'slow'`    | `slowEffects`    | `slowSpatial`    |
 
 ---
 
@@ -204,7 +206,7 @@ export { Pressable };
 export { useInteraction };
 
 // Types
-export type { PressableProps, InteractionProgress, InteractionSet, MotionSpeed, TapEvent, HoverEvent, LongPressEvent };
+export type { PressableProps, InteractionProgress, InteractionSet, TapEvent, HoverEvent, LongPressEvent };
 ```
 
 ---

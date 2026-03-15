@@ -157,7 +157,7 @@ This is independent of interaction morphing — both can happen simultaneously.
 
 ### Reduced Motion
 
-When `useReducedMotion()` returns true, rest shape transitions **snap** directly to the target without spring interpolation — `restProgress` jumps to 1 immediately instead of animating.
+Reduced motion is handled by `useMotionConfig`, which returns near-instant spring configs when the system reduced motion preference is active. Rest shape transitions use these springs — spatial springs become critically damped with very high stiffness, producing a near-instant snap without special-casing in ShapeContainer.
 
 ---
 

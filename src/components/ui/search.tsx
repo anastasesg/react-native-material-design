@@ -10,7 +10,7 @@ import { Modal, TextInput, useWindowDimensions, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 
-import { useControllableState } from '../../hooks';
+import { useControllableState, useMotionConfig } from '../../hooks';
 import { createComponentContext } from '../../utilities';
 import { Pressable, StateLayer } from '../custom';
 import { Icon, type MaterialSymbol } from './icon';
@@ -153,19 +153,20 @@ function Search({
     }
   }, []);
 
+  const motion = useMotionConfig('fast');
+
   React.useEffect(() => {
-    const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
     if (open) {
       setMounted(true);
-      marginAnim.value = withSpring(EXPANDED_MARGIN, fastEffects);
-      containerOpacity.value = withSpring(1, fastEffects);
-      scrimOpacity.value = withSpring(SCRIM_OPACITY, fastEffects);
-      barTranslateY.value = withSpring(0, fastEffects);
+      marginAnim.value = withSpring(EXPANDED_MARGIN, motion.effects.value);
+      containerOpacity.value = withSpring(1, motion.effects.value);
+      scrimOpacity.value = withSpring(SCRIM_OPACITY, motion.effects.value);
+      barTranslateY.value = withSpring(0, motion.effects.value);
     } else if (mounted) {
-      marginAnim.value = withSpring(COLLAPSED_MARGIN, fastEffects);
-      containerOpacity.value = withSpring(0, fastEffects, onCloseAnimationEnd);
-      scrimOpacity.value = withSpring(0, fastEffects);
-      barTranslateY.value = withSpring(measuredOffsetY.current, fastEffects);
+      marginAnim.value = withSpring(COLLAPSED_MARGIN, motion.effects.value);
+      containerOpacity.value = withSpring(0, motion.effects.value, onCloseAnimationEnd);
+      scrimOpacity.value = withSpring(0, motion.effects.value);
+      barTranslateY.value = withSpring(measuredOffsetY.current, motion.effects.value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

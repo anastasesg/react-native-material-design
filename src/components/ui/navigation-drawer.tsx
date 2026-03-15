@@ -19,7 +19,7 @@ import Animated, {
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { useControllableState } from '../../hooks';
+import { useControllableState, useMotionConfig } from '../../hooks';
 import { createComponentContext } from '../../utilities';
 import { Pressable, StateLayer } from '../custom';
 import { Icon, type IconProps } from './icon';
@@ -184,14 +184,15 @@ function NavigationDrawer({
     }
   }, []);
 
+  const motion = useMotionConfig('fast');
+
   // Phase 1: mount (reset progress to 0) or start exit animation
   React.useEffect(() => {
     if (isOpen) {
       progress.value = 0;
       setVisible(true);
     } else if (visible) {
-      const { fastEffects } = UnistylesRuntime.getTheme().motion.spring;
-      progress.value = withSpring(0, fastEffects, onCloseAnimationEnd);
+      progress.value = withSpring(0, motion.effects.value, onCloseAnimationEnd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -199,8 +200,7 @@ function NavigationDrawer({
   // Phase 2: once mounted, run the enter animation
   React.useEffect(() => {
     if (visible && isOpen) {
-      const { fastSpatial } = UnistylesRuntime.getTheme().motion.spring;
-      progress.value = withSpring(1, fastSpatial);
+      progress.value = withSpring(1, motion.spatial.value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);

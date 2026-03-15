@@ -19,6 +19,7 @@ import Animated, {
 import { StyleSheet, withUnistyles } from 'react-native-unistyles';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
+import { useMotionConfig } from '../../hooks';
 import { Icon, type MaterialSymbol } from './icon';
 import { Text } from './text';
 
@@ -227,6 +228,8 @@ function Slider({
   const handleHeight = HANDLE_HEIGHTS[size];
   const trackShape = TRACK_SHAPES[size];
 
+  const motion = useMotionConfig('fast');
+
   // Track dimensions
   const trackLength = useSharedValue(0);
 
@@ -259,25 +262,23 @@ function Slider({
 
   // Gesture: Tap (pressed state) + Pan (value tracking), composed simultaneously
   const gesture = React.useMemo(() => {
-    const springConfig = animatedTheme.value.motion.spring.fastEffects;
-
     const tap = Gesture.Tap()
       .enabled(!disabled)
       .maxDuration(10_000)
       .onBegin(() => {
         'worklet';
         isPressed.value = true;
-        handleWidthAnim.value = withSpring(HANDLE_WIDTH_PRESSED, springConfig);
+        handleWidthAnim.value = withSpring(HANDLE_WIDTH_PRESSED, motion.effects.value);
       })
       .onEnd(() => {
         'worklet';
         isPressed.value = false;
-        handleWidthAnim.value = withSpring(HANDLE_WIDTH_DEFAULT, springConfig);
+        handleWidthAnim.value = withSpring(HANDLE_WIDTH_DEFAULT, motion.effects.value);
       })
       .onFinalize(() => {
         'worklet';
         isPressed.value = false;
-        handleWidthAnim.value = withSpring(HANDLE_WIDTH_DEFAULT, springConfig);
+        handleWidthAnim.value = withSpring(HANDLE_WIDTH_DEFAULT, motion.effects.value);
       });
 
     const pan = Gesture.Pan()
@@ -312,7 +313,7 @@ function Slider({
     currentValue,
     isPressed,
     handleWidthAnim,
-    animatedTheme,
+    motion.effects,
     emitValue,
   ]);
 
@@ -629,6 +630,7 @@ function RangeSlider({
   styles.useVariants({ size, disabled });
 
   const animatedTheme = useAnimatedTheme();
+  const motion = useMotionConfig('fast');
   const isVertical = orientation === 'vertical';
 
   const trackHeight = TRACK_HEIGHTS[size];
@@ -666,25 +668,23 @@ function RangeSlider({
 
   // Gesture: Tap (pressed state) + Pan (value tracking), composed simultaneously
   const gesture = React.useMemo(() => {
-    const springConfig = animatedTheme.value.motion.spring.fastEffects;
-
     const tap = Gesture.Tap()
       .enabled(!disabled)
       .maxDuration(10_000)
       .onBegin(() => {
         'worklet';
         isPressed.value = true;
-        handleWidthAnim.value = withSpring(HANDLE_WIDTH_PRESSED, springConfig);
+        handleWidthAnim.value = withSpring(HANDLE_WIDTH_PRESSED, motion.effects.value);
       })
       .onEnd(() => {
         'worklet';
         isPressed.value = false;
-        handleWidthAnim.value = withSpring(HANDLE_WIDTH_DEFAULT, springConfig);
+        handleWidthAnim.value = withSpring(HANDLE_WIDTH_DEFAULT, motion.effects.value);
       })
       .onFinalize(() => {
         'worklet';
         isPressed.value = false;
-        handleWidthAnim.value = withSpring(HANDLE_WIDTH_DEFAULT, springConfig);
+        handleWidthAnim.value = withSpring(HANDLE_WIDTH_DEFAULT, motion.effects.value);
       });
 
     const pan = Gesture.Pan()
@@ -734,7 +734,7 @@ function RangeSlider({
     isPressed,
     activeHandle,
     handleWidthAnim,
-    animatedTheme,
+    motion.effects,
     emitValue,
   ]);
 
