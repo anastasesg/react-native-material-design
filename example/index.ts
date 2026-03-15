@@ -1,6 +1,6 @@
 import 'expo-router/entry';
 
-import { type Breakpoints, type Themes, configure } from 'react-native-material-design';
+import { type Breakpoints, configure, type Themes } from 'react-native-material-design';
 
 configure({ sourceColor: '#ad355f' });
 
