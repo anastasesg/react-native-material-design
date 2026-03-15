@@ -14,7 +14,7 @@ import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
 import { Pressable, StateLayer } from '../custom';
 import { Icon, type MaterialSymbol } from './icon';
-import { IconButton } from './icon-button';
+import { IconButton, IconButtonIcon } from './icon-button';
 import { Text } from './text';
 
 // =============================================================================
@@ -279,7 +279,11 @@ function Search({
     <Animated.View style={[searchStyles.expandedBarOuter, animatedMarginStyle, animatedBarTranslateStyle]}>
       <View style={searchStyles.expandedBar}>
         <SearchProvider value={expandedCtx}>
-          {leadingIconSlot || <IconButton name="arrow_back" variant="standard" size="small" onPress={handleCollapse} />}
+          {leadingIconSlot || (
+            <IconButton variant="standard" size="small" onPress={handleCollapse} accessibilityLabel="Back">
+              <IconButtonIcon name="arrow_back" />
+            </IconButton>
+          )}
           {inputSlot}
           {trailingIcons}
         </SearchProvider>
@@ -389,12 +393,20 @@ function SearchLeadingIcon({ name, onPress }: SearchLeadingIconProps) {
 
   // When expanded, always show back arrow that collapses
   if (expanded) {
-    return <IconButton name="arrow_back" variant="standard" size="small" onPress={onCollapse} />;
+    return (
+      <IconButton variant="standard" size="small" onPress={onCollapse} accessibilityLabel="Back">
+        <IconButtonIcon name="arrow_back" />
+      </IconButton>
+    );
   }
 
   // When collapsed, show the consumer's icon
   if (onPress) {
-    return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={disabled} />;
+    return (
+      <IconButton variant="standard" size="small" onPress={onPress} disabled={disabled} accessibilityLabel={name}>
+        <IconButtonIcon name={name} />
+      </IconButton>
+    );
   }
 
   return (
@@ -473,7 +485,11 @@ SearchInput.displayName = SEARCH_INPUT;
 
 function SearchTrailingIcon({ name, onPress }: SearchTrailingIconProps) {
   const { disabled } = useSearch();
-  return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={disabled} />;
+  return (
+    <IconButton variant="standard" size="small" onPress={onPress} disabled={disabled} accessibilityLabel={name}>
+      <IconButtonIcon name={name} />
+    </IconButton>
+  );
 }
 SearchTrailingIcon.displayName = SEARCH_TRAILING_ICON;
 

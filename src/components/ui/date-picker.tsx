@@ -17,7 +17,7 @@ import { Pressable, StateLayer } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { Divider } from './divider';
 import { Icon } from './icon';
-import { IconButton } from './icon-button';
+import { IconButton, IconButtonIcon } from './icon-button';
 import { Text } from './text';
 
 // =============================================================================
@@ -327,8 +327,12 @@ const CalendarGrid = React.memo(function CalendarGrid({
       <View style={pickerStyles.navRow}>
         <MonthYearButton label={`${MONTH_NAMES[viewMonth]} ${viewYear}`} onPress={onOpenYearPicker} />
         <View style={pickerStyles.navButtons}>
-          <IconButton name="chevron_left" onPress={onPrevMonth} accessibilityLabel="Previous month" />
-          <IconButton name="chevron_right" onPress={onNextMonth} accessibilityLabel="Next month" />
+          <IconButton onPress={onPrevMonth} accessibilityLabel="Previous month">
+            <IconButtonIcon name="chevron_left" />
+          </IconButton>
+          <IconButton onPress={onNextMonth} accessibilityLabel="Next month">
+            <IconButtonIcon name="chevron_right" />
+          </IconButton>
         </View>
       </View>
 
@@ -594,7 +598,9 @@ function DatePicker({
             <Text style={pickerStyles.supportingText}>{supportingText}</Text>
             <View style={pickerStyles.headlineRow}>
               <Text style={pickerStyles.headlineText}>{headlineDate}</Text>
-              <IconButton name="edit" disabled accessibilityLabel="Input mode not available" />
+              <IconButton disabled accessibilityLabel="Input mode not available">
+                <IconButtonIcon name="edit" />
+              </IconButton>
             </View>
           </View>
 

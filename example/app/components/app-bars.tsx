@@ -9,6 +9,7 @@ import {
   AppbarTitle,
 } from 'react-native-material-design/ui/app-bar';
 import type { MaterialSymbol } from 'react-native-material-design/ui/icon';
+import { IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 import {
   Search,
   SearchContent,
@@ -90,19 +91,27 @@ export default function AppBarsScreen() {
               {v.trailingCount > 0 && (
                 <AppbarActions>
                   {TRAILING_ICONS.slice(0, v.trailingCount).map((icon) => (
-                    <AppbarAction key={icon} name={icon} />
+                    <AppbarAction key={icon} accessibilityLabel={icon}>
+                      <IconButtonIcon name={icon} />
+                    </AppbarAction>
                   ))}
                 </AppbarActions>
               )}
             </Appbar>
           ) : (
             <AppbarHeader variant={v.variant} elevation={v.elevation} textAlignment={v.textAlignment}>
-              {v.leadingIcon && <AppbarAction name="arrow_back" />}
+              {v.leadingIcon && (
+                <AppbarAction accessibilityLabel="Back">
+                  <IconButtonIcon name="arrow_back" />
+                </AppbarAction>
+              )}
               <AppbarTitle title={v.title} supportingText={v.subtitle || undefined} />
               {v.trailingCount > 0 && (
                 <AppbarActions>
                   {TRAILING_ICONS.slice(0, v.trailingCount).map((icon) => (
-                    <AppbarAction key={icon} name={icon} />
+                    <AppbarAction key={icon} accessibilityLabel={icon}>
+                      <IconButtonIcon name={icon} />
+                    </AppbarAction>
                   ))}
                 </AppbarActions>
               )}

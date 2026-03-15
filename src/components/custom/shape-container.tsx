@@ -315,8 +315,8 @@ function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps)
       borderBottomRightRadius: rtl ? bl : br,
       outlineWidth,
       outlineOffset,
-      outlineColor: t.scheme.secondary,
-      outlineStyle: 'solid' as const,
+      outlineColor: focused ? t.scheme.secondary : undefined,
+      outlineStyle: focused ? ('solid' as const) : undefined,
     };
   });
 

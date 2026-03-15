@@ -23,7 +23,7 @@ import type { TypographyStyle } from '@/theme/typography';
 
 import { createComponentContext, getDisplayName } from '../../utilities';
 import { Icon, type MaterialSymbol } from './icon';
-import { IconButton } from './icon-button';
+import { IconButton, IconButtonIcon } from './icon-button';
 import { Text } from './text';
 
 // =============================================================================
@@ -492,7 +492,11 @@ function TextFieldTrailingIcon({ name, onPress }: TextFieldTrailingIconProps) {
   styles.useVariants({ disabled, error });
 
   if (onPress) {
-    return <IconButton name={name} variant="standard" size="small" onPress={onPress} disabled={disabled} />;
+    return (
+      <IconButton variant="standard" size="small" onPress={onPress} disabled={disabled} accessibilityLabel={name}>
+        <IconButtonIcon name={name} />
+      </IconButton>
+    );
   }
 
   return <Icon name={name} size={ICON_SIZE} style={styles.trailingIcon} />;

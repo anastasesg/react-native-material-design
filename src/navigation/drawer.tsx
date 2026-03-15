@@ -129,11 +129,11 @@ function DrawerAppbar({ children, ...props }: DrawerAppbarProps) {
     if (!React.isValidElement(child)) return child;
     const displayName = getDisplayName(child);
 
-    // Auto-wire menu action: AppbarAction with name="menu" gets onPress
-    if (displayName === 'AppbarAction' && (child.props as any).name === 'menu') {
-      if (!(child.props as any).onPress) {
-        return React.cloneElement(child, { onPress: toggle } as any);
-      }
+    // Auto-wire leading action: the first AppbarAction without onPress
+    // gets the drawer toggle. With the compound API, the icon name is on
+    // the child IconButtonIcon, not on AppbarAction itself.
+    if (displayName === 'AppbarAction' && !(child.props as any).onPress) {
+      return React.cloneElement(child, { onPress: toggle } as any);
     }
 
     // Auto-wire title: AppbarTitle without explicit title gets the screen label

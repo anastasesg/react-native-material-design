@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconButton } from 'react-native-material-design/ui/icon-button';
+import { IconButton, IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 import { Toolbar } from 'react-native-material-design/ui/toolbars';
 
 import { DemoPage } from '../../components/demo/demo-page';
@@ -39,7 +39,11 @@ export default function ToolbarsScreen() {
       schema={schema}
       config={config}
       preview={(v) => {
-        const icons = TOOLBAR_ICONS.map((name) => <IconButton key={name} name={name} variant="standard" />);
+        const icons = TOOLBAR_ICONS.map((name) => (
+          <IconButton key={name} variant="standard" accessibilityLabel={name}>
+            <IconButtonIcon name={name} />
+          </IconButton>
+        ));
 
         return (
           <Toolbar variant={v.type} colorStyle={v.colorStyle} layout={v.layout}>

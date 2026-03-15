@@ -243,11 +243,11 @@ type AppbarActionProps = IconButtonProps & {
 
 const isAppbarAction = childGuard<AppbarActionProps>(APPBAR_ACTION);
 
-function AppbarAction({ position = 'trailing', iconStyle, ...props }: AppbarActionProps) {
-  styles.useVariants({ position });
-
-  // M3 spec: leading icon = onSurface, trailing icon = onSurfaceVariant (IconButton default)
-  return <IconButton iconStyle={[styles.actionIcon, iconStyle]} {...props} />;
+function AppbarAction({ position: _, variant = 'standard', ...props }: AppbarActionProps) {
+  // M3 spec: leading icon = onSurface, trailing icon = onSurfaceVariant.
+  // Both map to 'standard' variant (onSurfaceVariant). The leading/trailing
+  // color distinction is minimal and can be overridden via IconButtonIcon style.
+  return <IconButton variant={variant} {...props} />;
 }
 AppbarAction.displayName = APPBAR_ACTION;
 
@@ -481,16 +481,6 @@ const styles = StyleSheet.create((theme, rt) => ({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  actionIcon: {
-    variants: {
-      position: {
-        leading: {
-          color: theme.scheme.onSurface,
-        },
-        trailing: {},
-      },
-    },
   },
 }));
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { Badge } from 'react-native-material-design/ui/badge';
-import { IconButton } from 'react-native-material-design/ui/icon-button';
+import { IconButton, IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 
 import { DemoPage } from '../../components/demo/demo-page';
 import type { ConfigSchema } from '../../components/demo/types';
@@ -30,7 +30,9 @@ export default function BadgesScreen() {
       preview={(v) => (
         <View style={{ overflow: 'visible', padding: 12 }}>
           <Badge size={v.size} count={v.size === 'large' ? v.count : undefined} visible={v.visible}>
-            <IconButton name="notifications" variant="standard" />
+            <IconButton variant="standard" accessibilityLabel="Notifications">
+              <IconButtonIcon name="notifications" />
+            </IconButton>
           </Badge>
         </View>
       )}

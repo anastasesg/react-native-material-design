@@ -23,7 +23,7 @@ import type { Scheme } from '@/theme/scheme';
 import { useControllableState } from '../../hooks';
 import { Pressable, StateLayer } from '../custom';
 import { Button, ButtonLabel } from './button';
-import { IconButton } from './icon-button';
+import { IconButton, IconButtonIcon } from './icon-button';
 import { Text } from './text';
 
 // =============================================================================
@@ -506,10 +506,11 @@ function TimePicker({
           {/* Bottom bar: mode toggle + actions */}
           <View style={pickerStyles.bottomBar}>
             <IconButton
-              name={mode === 'dial' ? 'keyboard' : 'schedule'}
               onPress={toggleMode}
               accessibilityLabel={mode === 'dial' ? 'Switch to keyboard input' : 'Switch to clock dial'}
-            />
+            >
+              <IconButtonIcon name={mode === 'dial' ? 'keyboard' : 'schedule'} />
+            </IconButton>
             <View style={pickerStyles.actions}>
               <Button variant="text" onPress={handleDismiss}>
                 <ButtonLabel>Cancel</ButtonLabel>

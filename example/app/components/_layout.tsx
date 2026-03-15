@@ -3,6 +3,7 @@ import { Drawer, DrawerAppbar } from 'react-native-material-design/navigation/ex
 import { Rail, RailAppbar } from 'react-native-material-design/navigation/expo/rail';
 import { AppbarAction, AppbarActions, AppbarTitle } from 'react-native-material-design/ui/app-bar';
 import type { MaterialSymbol } from 'react-native-material-design/ui/icon';
+import { IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 
 // M3 expanded breakpoint — switch from Drawer to Rail
 const EXPANDED_BREAKPOINT = 840;
@@ -71,10 +72,14 @@ function DrawerLayout() {
     <Drawer
       appbar={
         <DrawerAppbar>
-          <AppbarAction name="menu" />
+          <AppbarAction accessibilityLabel="Menu">
+            <IconButtonIcon name="menu" />
+          </AppbarAction>
           <AppbarTitle title="Components" />
           <AppbarActions>
-            <AppbarAction name="search" />
+            <AppbarAction accessibilityLabel="Search">
+              <IconButtonIcon name="search" />
+            </AppbarAction>
           </AppbarActions>
         </DrawerAppbar>
       }
@@ -98,7 +103,9 @@ function RailLayout() {
         <RailAppbar>
           <AppbarTitle title="Components" />
           <AppbarActions>
-            <AppbarAction name="search" />
+            <AppbarAction accessibilityLabel="Search">
+              <IconButtonIcon name="search" />
+            </AppbarAction>
           </AppbarActions>
         </RailAppbar>
       }

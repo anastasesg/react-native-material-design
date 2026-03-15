@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, ButtonLabel } from 'react-native-material-design/ui/button';
 import { ButtonGroup } from 'react-native-material-design/ui/button-group';
-import { IconButton } from 'react-native-material-design/ui/icon-button';
+import { IconButton, IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 
 import { DemoPage } from '../../components/demo/demo-page';
 import type { ConfigSchema } from '../../components/demo/types';
@@ -64,7 +64,9 @@ export default function ButtonGroupsScreen() {
         >
           {Array.from({ length: v.buttonCount }, (_, i) =>
             v.variant === 'connected' ? (
-              <IconButton key={i} name={ICONS[i % ICONS.length]} variant="tonal" />
+              <IconButton key={i} variant="tonal" accessibilityLabel={ICONS[i % ICONS.length]}>
+                <IconButtonIcon name={ICONS[i % ICONS.length]} />
+              </IconButton>
             ) : (
               <Button key={i} variant={i === 0 ? 'filled' : i === 1 ? 'tonal' : 'outlined'}>
                 <ButtonLabel>{`Option ${i + 1}`}</ButtonLabel>

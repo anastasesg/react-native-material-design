@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, View } from 'react-native';
 import { Button, ButtonLabel } from 'react-native-material-design/ui/button';
 import { Carousel, CarouselItem, CarouselItemImage, CarouselItemLabel } from 'react-native-material-design/ui/carousel';
-import { IconButton } from 'react-native-material-design/ui/icon-button';
+import { IconButton, IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 import { StyleSheet } from 'react-native-unistyles';
 
 import { DemoPage } from '../../components/demo/demo-page';
@@ -86,7 +86,13 @@ export default function CarouselScreen() {
         <Modal visible={fullScreenVisible} animationType="slide" statusBarTranslucent>
           <View style={styles.fullScreenOverlay}>
             {carouselContent}
-            <IconButton name="close" onPress={() => setFullScreenVisible(false)} style={styles.closeButton} />
+            <IconButton
+              onPress={() => setFullScreenVisible(false)}
+              style={styles.closeButton}
+              accessibilityLabel="Close"
+            >
+              <IconButtonIcon name="close" />
+            </IconButton>
           </View>
         </Modal>
       )}

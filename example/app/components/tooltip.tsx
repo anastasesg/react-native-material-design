@@ -1,7 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { Button, ButtonLabel } from 'react-native-material-design/ui/button';
-import { IconButton } from 'react-native-material-design/ui/icon-button';
+import { IconButton, IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 import { Text } from 'react-native-material-design/ui/text';
 import {
   Tooltip,
@@ -54,7 +54,9 @@ export default function TooltipsScreen() {
           </Text>
           <Tooltip variant={v.variant}>
             <TooltipTrigger>
-              <IconButton name={isRich ? 'info' : 'favorite'} variant="outlined" />
+              <IconButton variant="outlined" accessibilityLabel={isRich ? 'Info' : 'Favorite'}>
+                <IconButtonIcon name={isRich ? 'info' : 'favorite'} />
+              </IconButton>
             </TooltipTrigger>
             {isRich && v.subhead ? <TooltipSubhead>{v.subhead}</TooltipSubhead> : null}
             <TooltipContent>{v.content}</TooltipContent>

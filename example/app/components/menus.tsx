@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconButton } from 'react-native-material-design/ui/icon-button';
+import { IconButton, IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 import {
   Menu,
   MenuDivider,
@@ -74,7 +74,11 @@ export default function MenusScreen() {
           colorStyle={v.variant === 'vertical' ? v.colorStyle : undefined}
           open={open}
           onOpenChange={setOpen}
-          anchor={<IconButton name="more_vert" onPress={() => setOpen(true)} />}
+          anchor={
+            <IconButton onPress={() => setOpen(true)} accessibilityLabel="More options">
+              <IconButtonIcon name="more_vert" />
+            </IconButton>
+          }
         >
           {items.map((item, i) => (
             <React.Fragment key={item.label}>

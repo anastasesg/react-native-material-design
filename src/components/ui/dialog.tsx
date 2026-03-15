@@ -16,7 +16,7 @@ import { Pressable } from '../custom';
 import { Button, ButtonLabel } from './button';
 import { Divider } from './divider';
 import { Icon, type MaterialSymbol } from './icon';
-import { IconButton } from './icon-button';
+import { IconButton, IconButtonIcon } from './icon-button';
 import { Text, type TextProps } from './text';
 
 // =============================================================================
@@ -228,7 +228,9 @@ function Dialog({
           <DialogProvider value={ctx}>
             <View style={[dialogStyles.container, style]}>
               <View style={dialogStyles.header}>
-                <IconButton name="close" onPress={handleDismiss} />
+                <IconButton onPress={handleDismiss} accessibilityLabel="Close">
+                  <IconButtonIcon name="close" />
+                </IconButton>
                 {headlineSlot}
                 {headerActionSlot}
               </View>

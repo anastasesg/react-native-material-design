@@ -21,7 +21,7 @@ import { useControllableState } from '../../hooks';
 import { createComponentContext, getDisplayName } from '../../utilities';
 import { Pressable } from '../custom';
 import { Divider } from './divider';
-import { IconButton } from './icon-button';
+import { IconButton, IconButtonIcon } from './icon-button';
 import { Text } from './text';
 
 // =============================================================================
@@ -305,7 +305,9 @@ function SideSheetHeadline({ children }: SideSheetHeadlineProps) {
 
 function SideSheetBack({ onPress }: SideSheetBackProps) {
   return (
-    <IconButton name="arrow_back" size="small" variant="standard" onPress={onPress} accessibilityLabel="Go back" />
+    <IconButton size="small" variant="standard" onPress={onPress} accessibilityLabel="Go back">
+      <IconButtonIcon name="arrow_back" />
+    </IconButton>
   );
 }
 
@@ -325,13 +327,9 @@ function SideSheetClose({ onPress }: SideSheetCloseProps) {
   }, [onPress, dismiss]);
 
   return (
-    <IconButton
-      name="close"
-      size="small"
-      variant="standard"
-      onPress={handlePress}
-      accessibilityLabel="Close side sheet"
-    />
+    <IconButton size="small" variant="standard" onPress={handlePress} accessibilityLabel="Close side sheet">
+      <IconButtonIcon name="close" />
+    </IconButton>
   );
 }
 

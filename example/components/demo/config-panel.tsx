@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { Button, ButtonLabel } from 'react-native-material-design/ui/button';
 import { Chip, ChipLabel } from 'react-native-material-design/ui/chips';
-import { IconButton } from 'react-native-material-design/ui/icon-button';
+import { IconButton, IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 import { Slider } from 'react-native-material-design/ui/slider';
 import { Switch, SwitchLabel, SwitchToggle } from 'react-native-material-design/ui/switch';
 import { Text } from 'react-native-material-design/ui/text';
@@ -121,12 +121,14 @@ function NumberControl({
   return (
     <View style={styles.numberRow}>
       <IconButton
-        name="remove"
         variant="outlined"
         size="small"
         disabled={value <= field.min}
         onPress={() => onChange(Math.max(field.min, value - step))}
-      />
+        accessibilityLabel="Decrease"
+      >
+        <IconButtonIcon name="remove" />
+      </IconButton>
       <View style={styles.numberFieldWrapper}>
         <TextField label={field.label} variant="outlined">
           <TextFieldInput
@@ -140,12 +142,14 @@ function NumberControl({
         </TextField>
       </View>
       <IconButton
-        name="add"
         variant="outlined"
         size="small"
         disabled={value >= field.max}
         onPress={() => onChange(Math.min(field.max, value + step))}
-      />
+        accessibilityLabel="Increase"
+      >
+        <IconButtonIcon name="add" />
+      </IconButton>
     </View>
   );
 }

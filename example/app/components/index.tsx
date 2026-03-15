@@ -3,7 +3,7 @@ import { Href, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Image, ScrollView, View } from 'react-native';
 import { Card } from 'react-native-material-design/ui/card';
-import { IconButton } from 'react-native-material-design/ui/icon-button';
+import { IconButton, IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 import { Text } from 'react-native-material-design/ui/text';
 import { StyleSheet } from 'react-native-unistyles';
 
@@ -318,7 +318,7 @@ export default function Page() {
       <View style={styles.hero}>
         <Card variant="filled" style={styles.heroTextCard}>
           <View style={styles.heroTextInner}>
-            <Text variant="display" size="small">
+            <Text variant="display" size="small" style={styles.heroTitle}>
               Components
             </Text>
             <Text variant="body" size="large" style={styles.heroBody}>
@@ -337,11 +337,13 @@ export default function Page() {
             allowsPictureInPicture={false}
           />
           <IconButton
-            name={isPlaying ? 'pause' : 'play_arrow'}
             variant="tonal"
             style={styles.heroPlayButton}
             onPress={() => (isPlaying ? player.pause() : player.play())}
-          />
+            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+          >
+            <IconButtonIcon name={isPlaying ? 'pause' : 'play_arrow'} />
+          </IconButton>
         </Card>
       </View>
 
@@ -391,6 +393,9 @@ const styles = StyleSheet.create((theme, rt) => ({
     width: {
       medium: '48%',
     },
+    aspectRatio: {
+      large: 6 / 4,
+    },
     flexGrow: 1,
     justifyContent: {
       medium: 'center',
@@ -400,12 +405,16 @@ const styles = StyleSheet.create((theme, rt) => ({
     padding: 24,
     gap: 8,
   },
+  heroTitle: {},
   heroBody: {
     color: theme.scheme.onSurfaceVariant,
   },
   heroVideoCard: {
     width: {
       medium: '48%',
+    },
+    aspectRatio: {
+      large: 6 / 4,
     },
     flexGrow: 1,
     overflow: 'hidden',
@@ -451,6 +460,7 @@ const styles = StyleSheet.create((theme, rt) => ({
     width: {
       compact: '100%',
       medium: '48%',
+      large: '31%',
     },
     flexGrow: {
       medium: 1,
