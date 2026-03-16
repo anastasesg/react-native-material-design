@@ -1,9 +1,17 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { UnistylesRuntime } from 'react-native-unistyles';
 
 import type { Motion, MotionScheme, SpringConfig, SpringSet } from '@/theme';
 import { getThemeSettings, subscribeThemeSettings } from '@/theme/settings';
+
+// ---------------------------------------------------------------------------
+// Cached motion — avoids synchronous Nitro bridge call on every render.
+// Initialized once at module load; updated inside the useEffect when
+// motionScheme or reducedMotion actually changes.
+// ---------------------------------------------------------------------------
+
+let cachedMotion: Motion = UnistylesRuntime.getTheme().motion;
 
 /** Element size — determines spring speed. */
 type MotionSpeed = 'fast' | 'default' | 'slow';
@@ -76,21 +84,16 @@ function useMotionConfig(speed: MotionSpeed, scheme?: MotionScheme): MotionConfi
   const override = useSyncExternalStore(subscribeThemeSettings, () => getThemeSettings().reducedMotion);
   const motionScheme = useSyncExternalStore(subscribeThemeSettings, () => getThemeSettings().motionScheme);
   const reducedMotion = override === 'device' ? deviceReducedMotion : override;
-  const { motion } = UnistylesRuntime.getTheme();
+  const effects = useSharedValue(resolveSpring(cachedMotion, speed, 'effects', reducedMotion, scheme));
+  const spatial = useSharedValue(resolveSpring(cachedMotion, speed, 'spatial', reducedMotion, scheme));
 
-  const effects = useSharedValue(resolveSpring(motion, speed, 'effects', reducedMotion, scheme));
-  const spatial = useSharedValue(resolveSpring(motion, speed, 'spatial', reducedMotion, scheme));
-
-  // Skip the initial useEffect — shared values are already initialized above.
-  const isFirstRender = useRef(true);
+  // Sync cached motion and shared values whenever deps change (including on mount).
+  // The mount run is intentional: if the module-level cachedMotion was initialized
+  // before unistyles setup, shared values from lines above may hold stale springs.
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    const { motion: m } = UnistylesRuntime.getTheme();
-    effects.value = resolveSpring(m, speed, 'effects', reducedMotion, scheme);
-    spatial.value = resolveSpring(m, speed, 'spatial', reducedMotion, scheme);
+    cachedMotion = UnistylesRuntime.getTheme().motion;
+    effects.value = resolveSpring(cachedMotion, speed, 'effects', reducedMotion, scheme);
+    spatial.value = resolveSpring(cachedMotion, speed, 'spatial', reducedMotion, scheme);
   }, [effects, spatial, speed, scheme, reducedMotion, motionScheme]);
 
   return { effects, spatial, reducedMotion };

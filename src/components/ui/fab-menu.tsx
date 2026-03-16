@@ -61,6 +61,8 @@ type FABMenuProps = {
   fabColorStyle?: FABColorStyle;
   /** Style applied to the FAB when the menu is closed. */
   fabStyle?: StyleProp<ViewStyle>;
+  /** Accessibility label for the trigger FAB (e.g. "Open actions menu"). */
+  accessibilityLabel: string;
   /** Menu items (2-6 FABMenuItem children). */
   children: React.ReactNode;
 };
@@ -107,13 +109,14 @@ const FAB_COLOR_MAP: Record<FABMenuColor, FABColorStyle> = {
 function FABMenu({
   icon,
   color = 'primary',
-  size = 'small',
+  size = 'regular',
   open: openProp,
   defaultOpen = false,
   onOpenChange,
   style,
   fabColorStyle,
   fabStyle,
+  accessibilityLabel,
   children,
 }: FABMenuProps) {
   const [isOpen, setOpen] = useControllableState({
@@ -149,6 +152,7 @@ function FABMenu({
         onPress={handleOpen}
         style={[fabStyle, isOpen && { opacity: 0 }]}
         disabled={isOpen}
+        accessibilityLabel={accessibilityLabel}
       >
         <FABIcon name={icon} />
       </FAB>

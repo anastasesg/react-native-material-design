@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import Animated, { type SharedValue, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
@@ -72,12 +72,13 @@ function ElevationContainer({ level, elevations, shadowColor = 'shadow', style, 
   const progress = useInteraction();
 
   // Normalize to always be a SharedValue so the worklet has a single code path.
-  // For static numbers, mirror into a fallback SharedValue updated on each render.
+  // For static numbers, mirror into a fallback SharedValue updated via useLayoutEffect
+  // to comply with Reanimated strict mode (no .value writes during render phase).
   const isAnimated = typeof level !== 'number';
   const fallbackLevel = useSharedValue(isAnimated ? 0 : level);
-  // Sync directly during render — safe for non-animated SharedValue writes.
-  // Avoids the one-frame stale shadow that useEffect would cause.
-  if (!isAnimated) fallbackLevel.value = level as ElevationLevel;
+  useLayoutEffect(() => {
+    if (!isAnimated && fallbackLevel.value !== level) fallbackLevel.value = level as ElevationLevel;
+  }, [isAnimated, level, fallbackLevel]);
   const effectiveLevel = isAnimated ? level : fallbackLevel;
 
   const animatedStyle = useAnimatedStyle(() => {

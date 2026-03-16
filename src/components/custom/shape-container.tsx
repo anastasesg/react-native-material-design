@@ -159,7 +159,12 @@ function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps)
       }
       prevShapeRef.current = shape;
     }
-  }, [shape, normalized, motion.spatial, motion.reducedMotion, restCornersShared, prevRestCornersShared, restProgress]);
+    // motion.spatial is a stable SharedValue identity (never changes between renders).
+    // We read .value inside the effect to get the current spring config at call time.
+    // It is intentionally excluded from deps — this effect should only re-run when
+    // the shape changes, not when the motion config changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shape, normalized, motion.reducedMotion, restCornersShared, prevRestCornersShared, restProgress]);
 
   // Pre-normalize interaction shapes so the worklet doesn't call normalizeShape
   type NormalizedShapes = {
@@ -233,8 +238,7 @@ function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps)
       };
     }
 
-    // Cache all shared value reads upfront to avoid redundant .value accesses
-    // (each .value crosses the Hermes JNI boundary on the UI thread)
+    // Cache spatial progress reads upfront (each .value crosses the JNI boundary)
     const spHover = progress.spatial.hover.value;
     const spFocus = progress.spatial.focus.value;
     const spPress = progress.spatial.press.value;
@@ -242,6 +246,24 @@ function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps)
     const efFocus = progress.effects.focus.value;
     const efPress = progress.effects.press.value;
     const efDrag = progress.effects.drag.value;
+
+    // Fast path — no active interaction, skip corner blending entirely.
+    // At 120 Hz this saves 16 resolve+min calls and 4 blending passes per frame.
+    if (spHover === 0 && spFocus === 0 && spPress === 0 && spDrag === 0) {
+      const focused = efFocus > 0.5 && efPress < 0.1 && efDrag < 0.1;
+      const outlineWidth = focused ? 3 : 0;
+      const outlineOffset = focused ? 2 : 0;
+      return {
+        borderTopLeftRadius: rtl ? restTR : restTL,
+        borderTopRightRadius: rtl ? restTL : restTR,
+        borderBottomLeftRadius: rtl ? restBR : restBL,
+        borderBottomRightRadius: rtl ? restBL : restBR,
+        outlineWidth,
+        outlineOffset,
+        outlineColor: focused ? t.scheme.secondary : undefined,
+        outlineStyle: focused ? ('solid' as const) : undefined,
+      };
+    }
 
     // Pre-resolve interaction corner targets once (avoids redundant resolve() +
     // Math.min calls when multiple interactions are active simultaneously).

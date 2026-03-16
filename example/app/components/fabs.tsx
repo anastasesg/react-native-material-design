@@ -5,6 +5,7 @@ import { Text } from 'react-native-material-design/ui/text';
 import { StyleSheet } from 'react-native-unistyles';
 
 import { ConfigPanel } from '../../components/demo/config-panel';
+import { IconPicker } from '../../components/demo/icon-picker';
 import type { ConfigSchema } from '../../components/demo/types';
 import { useConfig } from '../../components/demo/use-config';
 
@@ -12,21 +13,52 @@ const schema = {
   size: {
     type: 'slider',
     label: 'Size',
-    stops: ['small', 'medium', 'large'],
+    stops: ['regular', 'medium', 'large'],
     default: 'medium',
   },
   color: {
     type: 'color',
-    label: 'Color',
-    options: ['primaryContainer', 'secondaryContainer', 'tertiaryContainer', 'primary', 'secondary', 'tertiary'],
+    label: 'Color style',
+    options: [
+      'primaryContainer',
+      'secondaryContainer',
+      'tertiaryContainer',
+      'primary',
+      'secondary',
+      'tertiary',
+      'surface',
+    ],
     default: 'primaryContainer',
   },
   disabled: { type: 'switch', label: 'Disabled', default: false },
+  toggle: { type: 'switch', label: 'Toggle mode', default: false },
+  iconName: {
+    type: 'custom',
+    label: 'Icon name',
+    default: 'add',
+    render: (value: string, onChange: (v: string) => void) => (
+      <IconPicker value={value} onChange={onChange} placeholder="Search icons..." />
+    ),
+  },
+  selectedIconName: {
+    type: 'custom',
+    label: 'Selected icon (toggle)',
+    default: '',
+    render: (value: string, onChange: (v: string) => void) => (
+      <IconPicker value={value} onChange={onChange} placeholder="Search selected icon..." />
+    ),
+  },
+  tooltip: { type: 'text', label: 'Tooltip', default: '' },
+  shapeMorph: { type: 'switch', label: 'Shape morph on press', default: true },
 } as const satisfies ConfigSchema;
+
+const NO_SHAPE_MORPH = {} as const;
 
 export default function FABsScreen() {
   const config = useConfig(schema);
   const v = config.values;
+
+  const interactionShapes = v.shapeMorph ? undefined : NO_SHAPE_MORPH;
 
   return (
     <View style={styles.root}>
@@ -40,15 +72,25 @@ export default function FABsScreen() {
           </Text>
         </View>
 
-        <Text variant="body" size="medium" style={styles.hint}>
-          Tap the FAB in the bottom-right corner
-        </Text>
-
         <ConfigPanel schema={schema} config={config} />
       </ScrollView>
 
-      <FAB size={v.size} colorStyle={v.color} disabled={v.disabled} style={styles.fab}>
-        <FABIcon name="add" />
+      <FAB
+        style={styles.fab}
+        size={v.size}
+        colorStyle={v.color}
+        disabled={v.disabled}
+        toggle={v.toggle}
+        defaultSelected={false}
+        interactionShapes={interactionShapes}
+        tooltip={v.tooltip || undefined}
+        accessibilityLabel={v.tooltip || v.iconName}
+      >
+        <FABIcon
+          name={v.iconName as any}
+          selectedName={v.selectedIconName ? (v.selectedIconName as any) : undefined}
+          variant="outlined"
+        />
       </FAB>
     </View>
   );
@@ -63,7 +105,7 @@ const styles = StyleSheet.create((theme, rt) => ({
     flex: 1,
   },
   content: {
-    paddingBottom: rt.insets.bottom + 100,
+    paddingBottom: rt.insets.bottom + 120,
   },
   header: {
     padding: 20,
@@ -72,14 +114,9 @@ const styles = StyleSheet.create((theme, rt) => ({
   description: {
     color: theme.scheme.onSurfaceVariant,
   },
-  hint: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    color: theme.scheme.onSurfaceVariant,
-  },
   fab: {
     position: 'absolute',
     bottom: rt.insets.bottom + 16,
-    right: rt.insets.right + 16,
+    right: 16,
   },
 }));
