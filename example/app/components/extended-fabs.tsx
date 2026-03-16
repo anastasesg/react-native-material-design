@@ -1,10 +1,11 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { FAB, FABIcon, FABLabel } from 'react-native-material-design/ui/fab';
+import { ExtendedFAB, ExtendedFABIcon, ExtendedFABLabel } from 'react-native-material-design/ui/extended-fab';
 import { Text } from 'react-native-material-design/ui/text';
 import { StyleSheet } from 'react-native-unistyles';
 
 import { ConfigPanel } from '../../components/demo/config-panel';
+import { IconPicker } from '../../components/demo/icon-picker';
 import type { ConfigSchema } from '../../components/demo/types';
 import { useConfig } from '../../components/demo/use-config';
 
@@ -17,18 +18,49 @@ const schema = {
   },
   color: {
     type: 'color',
-    label: 'Color',
-    options: ['primaryContainer', 'secondaryContainer', 'tertiaryContainer', 'primary', 'secondary', 'tertiary'],
+    label: 'Color style',
+    options: [
+      'primaryContainer',
+      'secondaryContainer',
+      'tertiaryContainer',
+      'primary',
+      'secondary',
+      'tertiary',
+      'surface',
+    ],
     default: 'primaryContainer',
   },
   disabled: { type: 'switch', label: 'Disabled', default: false },
-  icon: { type: 'switch', label: 'Show icon', default: true },
+  toggle: { type: 'switch', label: 'Toggle mode', default: false },
+  showIcon: { type: 'switch', label: 'Show icon', default: true },
+  iconName: {
+    type: 'custom',
+    label: 'Icon name',
+    default: 'add',
+    render: (value: string, onChange: (v: string) => void) => (
+      <IconPicker value={value} onChange={onChange} placeholder="Search icons..." />
+    ),
+  },
+  selectedIconName: {
+    type: 'custom',
+    label: 'Selected icon (toggle)',
+    default: '',
+    render: (value: string, onChange: (v: string) => void) => (
+      <IconPicker value={value} onChange={onChange} placeholder="Search selected icon..." />
+    ),
+  },
   label: { type: 'text', label: 'Label', default: 'Create' },
+  tooltip: { type: 'text', label: 'Tooltip', default: '' },
+  shapeMorph: { type: 'switch', label: 'Shape morph on press', default: true },
 } as const satisfies ConfigSchema;
+
+const NO_SHAPE_MORPH = {} as const;
 
 export default function ExtendedFABsScreen() {
   const config = useConfig(schema);
   const v = config.values;
+
+  const interactionShapes = v.shapeMorph ? undefined : NO_SHAPE_MORPH;
 
   return (
     <View style={styles.root}>
@@ -42,17 +74,28 @@ export default function ExtendedFABsScreen() {
           </Text>
         </View>
 
-        <Text variant="body" size="medium" style={styles.hint}>
-          See the Extended FAB in the bottom-right corner
-        </Text>
-
         <ConfigPanel schema={schema} config={config} />
       </ScrollView>
 
-      <FAB size={v.size} colorStyle={v.color} disabled={v.disabled} style={styles.fab}>
-        {v.icon && <FABIcon name="add" />}
-        <FABLabel>{v.label}</FABLabel>
-      </FAB>
+      <ExtendedFAB
+        style={styles.fab}
+        size={v.size}
+        colorStyle={v.color}
+        disabled={v.disabled}
+        toggle={v.toggle}
+        defaultSelected={false}
+        interactionShapes={interactionShapes}
+        tooltip={v.tooltip || undefined}
+      >
+        {v.showIcon && (
+          <ExtendedFABIcon
+            name={v.iconName as any}
+            selectedName={v.selectedIconName ? (v.selectedIconName as any) : undefined}
+            variant="outlined"
+          />
+        )}
+        <ExtendedFABLabel>{v.label}</ExtendedFABLabel>
+      </ExtendedFAB>
     </View>
   );
 }
@@ -66,18 +109,13 @@ const styles = StyleSheet.create((theme, rt) => ({
     flex: 1,
   },
   content: {
-    paddingBottom: rt.insets.bottom + 100,
+    paddingBottom: rt.insets.bottom + 120,
   },
   header: {
     padding: 20,
     gap: 4,
   },
   description: {
-    color: theme.scheme.onSurfaceVariant,
-  },
-  hint: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
     color: theme.scheme.onSurfaceVariant,
   },
   fab: {

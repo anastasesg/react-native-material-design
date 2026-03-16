@@ -10,7 +10,7 @@ Source: [`src/components/custom/shape-container.tsx`](../../src/components/custo
 
 ShapeContainer is the component that gives M3 components their shape — the rounded pill of a Button, the rounded rectangle of a Card, the square corners of a TextField. It resolves shape tokens from the theme, clips children via `overflow: hidden`, and animates border radii during interactions (the M3 "squish" effect on press).
 
-It reads **spatial** interaction progress from the nearest [Pressable](./pressable.md) — using the overshoot-allowed spring channel so shape morphing has elastic bounce.
+It reads **spatial** interaction progress from the nearest [Pressable](./pressable.md) — using the overshoot-allowed spring channel so shape morphing has elastic bounce. The spring speed tier is configurable via the `speed` prop to match the M3 motion spec for the component's coverage class.
 
 ---
 
@@ -20,16 +20,18 @@ It reads **spatial** interaction progress from the nearest [Pressable](./pressab
 type ShapeContainerProps = {
   shape: ShapeSpec; // Rest shape
   shapes?: InteractionShapes; // Target shapes per interaction state
+  speed?: MotionSpeed; // Spring tier: 'fast' | 'default' | 'slow'
   style?: StyleProp<ViewStyle>; // Additional style (background, padding, layout)
   children: React.ReactNode;
 };
 ```
 
-| Prop     | Description                                                                                                          |
-| -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `shape`  | The rest (idle) shape — applied when no interaction is active                                                        |
-| `shapes` | Per-interaction target shapes. Omit to disable morphing. Pass `{}` explicitly to disable all.                        |
-| `style`  | Merged onto the Animated.View. Components pass container styles here (padding, backgroundColor, flexDirection, etc.) |
+| Prop     | Default  | Description                                                                                                          |
+| -------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `shape`  | —        | The rest (idle) shape — applied when no interaction is active                                                        |
+| `shapes` | —        | Per-interaction target shapes. Omit to disable morphing. Pass `{}` explicitly to disable all.                        |
+| `speed`  | `'fast'` | Motion speed tier for shape transition springs (see [Motion Speed](#motion-speed) below)                             |
+| `style`  | —        | Merged onto the Animated.View. Components pass container styles here (padding, backgroundColor, flexDirection, etc.) |
 
 ---
 
@@ -144,7 +146,7 @@ This is used by ButtonGroup to keep shared edges static while individual button 
 
 ## Rest Shape Transitions
 
-When the `shape` prop changes at runtime (e.g., toggle selection inverts shape), the container **animates** between the old and new rest shape using the theme's `fastSpatial` spring.
+When the `shape` prop changes at runtime (e.g., toggle selection inverts shape), the container **animates** between the old and new rest shape using the spatial spring from the selected `speed` tier.
 
 Implementation:
 
@@ -158,6 +160,31 @@ This is independent of interaction morphing — both can happen simultaneously.
 ### Reduced Motion
 
 Reduced motion is handled by `useMotionConfig`, which returns near-instant spring configs when the system reduced motion preference is active. Rest shape transitions use these springs — spatial springs become critically damped with very high stiffness, producing a near-instant snap without special-casing in ShapeContainer.
+
+---
+
+## Motion Speed
+
+The `speed` prop selects which spring tier from the M3 motion system is used for shape transition animations. This controls how quickly the shape morphs during interactions and rest-shape transitions.
+
+| Speed       | M3 Spring Token                        | Use Case                                              |
+| ----------- | -------------------------------------- | ----------------------------------------------------- |
+| `'fast'`    | `md.sys.motion.spring.fast.spatial`    | Small selection controls — switches, checkboxes, FABs |
+| `'default'` | `md.sys.motion.spring.default.spatial` | Medium-coverage components — Extended FABs, cards     |
+| `'slow'`    | `md.sys.motion.spring.slow.spatial`    | Large-coverage components — bottom sheets, dialogs    |
+
+The M3 spec recommends `'fast'` for small selection controls and `'default'` for medium-coverage components. The `speed` prop defaults to `'fast'` for backwards compatibility — components that need a different tier pass it explicitly.
+
+### Current consumer usage
+
+| Component   | Speed       | Reason                            |
+| ----------- | ----------- | --------------------------------- |
+| Button      | `'fast'`    | Small selection control (default) |
+| FAB         | `'fast'`    | Small selection control (default) |
+| ExtendedFAB | `'default'` | Medium-coverage component         |
+| IconButton  | `'fast'`    | Small selection control (default) |
+| Card        | `'fast'`    | Small selection control (default) |
+| Chips       | `'fast'`    | Small selection control (default) |
 
 ---
 
@@ -229,3 +256,18 @@ export type { ShapeContainerProps, ShapeSpec, ShapeToken, ShapeCorner, PerCorner
 ```
 
 The `normalizeShape` helper is exported for components that need to pre-expand a `ShapeSpec` into per-corner form (e.g., for passing to SharedValues).
+
+---
+
+## Consumers
+
+| Component   | Rest Shape              | Press Morph Target | Speed       | Notes                               |
+| ----------- | ----------------------- | ------------------ | ----------- | ----------------------------------- |
+| Button      | `'full'` or size-based  | Size-based         | `'fast'`    | Shape inverts on toggle selection   |
+| FAB         | Size-based              | Size-based         | `'fast'`    | Square → smaller corners on press   |
+| ExtendedFAB | Size-based              | Size-based         | `'default'` | Medium-coverage component           |
+| IconButton  | `'full'` or size-based  | Size-based         | `'fast'`    | Shape inverts on toggle selection   |
+| SplitButton | Per-segment corners     | —                  | `'fast'`    | Suppresses morphing (`shapes={{}}`) |
+| Card        | `'medium'` or custom    | —                  | `'fast'`    | No press morphing                   |
+| Chips       | `'small'` or size-based | —                  | `'fast'`    | No press morphing                   |
+| ButtonGroup | Per-segment corners     | —                  | `'fast'`    | Suppresses morphing (`shapes={{}}`) |

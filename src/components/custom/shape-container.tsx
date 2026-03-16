@@ -6,7 +6,7 @@ import { useAnimatedTheme } from 'react-native-unistyles/reanimated';
 
 import type { Shape } from '@/theme';
 
-import { useMotionConfig } from '../../hooks';
+import { type MotionSpeed, useMotionConfig } from '../../hooks';
 import { useInteraction } from './pressable';
 
 // ---------------------------------------------------------------------------
@@ -53,6 +53,14 @@ type ShapeContainerProps = {
   shape: ShapeSpec;
   /** Target shapes per interaction state. When omitted, corners stay at rest shape. */
   shapes?: InteractionShapes;
+  /**
+   * Motion speed tier for shape transition springs.
+   * - `'fast'` — small selection controls (switches, checkboxes, FABs)
+   * - `'default'` — medium-coverage components (extended FABs, cards)
+   * - `'slow'` — large-coverage components (bottom sheets, dialogs)
+   * @default 'fast'
+   */
+  speed?: MotionSpeed;
   /** Additional style (background, padding, layout, etc.). */
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
@@ -96,6 +104,13 @@ function normalizeShape(shape: ShapeSpec): PerCornerShape {
  * Priority follows M3: drag > press > focus > hover. Only the highest-priority
  * active interaction's shape is applied.
  *
+ * ## Motion speed
+ *
+ * The `speed` prop selects the spring tier from the M3 motion system for shape
+ * transition animations. Defaults to `'fast'` for backwards compatibility. Override
+ * to `'default'` for medium-coverage components (Extended FAB, Card) or `'slow'`
+ * for large-coverage components (BottomSheet, Dialog).
+ *
  * ## Safety: maxRadius capping
  *
  * Border radius is capped at `containerHeight / 2` to prevent iOS CoreAnimation
@@ -115,12 +130,17 @@ function normalizeShape(shape: ShapeSpec): PerCornerShape {
  * >
  *   <Content />
  * </ShapeContainer>
+ *
+ * // Medium-coverage component with default speed
+ * <ShapeContainer shape="largeIncreased" shapes={{ press: 'medium' }} speed="default">
+ *   <Content />
+ * </ShapeContainer>
  * ```
  */
-function ShapeContainer({ shape, shapes, style, children }: ShapeContainerProps) {
+function ShapeContainer({ shape, shapes, speed = 'fast', style, children }: ShapeContainerProps) {
   const progress = useInteraction();
   const animatedTheme = useAnimatedTheme();
-  const motion = useMotionConfig('fast');
+  const motion = useMotionConfig(speed);
   const containerHeight = useSharedValue(0);
 
   // Mirror into shared values so the UI-thread worklet always reads current data

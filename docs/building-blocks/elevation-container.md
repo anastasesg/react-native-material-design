@@ -168,6 +168,17 @@ The `animatedStyle` contains:
 
 ---
 
+## Consumers
+
+| Component   | Rest Level | Hover | Press | Notes                              |
+| ----------- | ---------- | ----- | ----- | ---------------------------------- |
+| Button      | 0 or 1     | +1    | —     | 0 for filled/tonal, 1 for elevated |
+| FAB         | 3          | 4     | —     | Disabled drops to 0                |
+| ExtendedFAB | 3          | 4     | —     | Disabled drops to 0                |
+| SplitButton | 0 or 1     | +1    | —     | Matches Button                     |
+
+---
+
 ## Exports
 
 ```tsx

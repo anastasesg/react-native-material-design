@@ -54,6 +54,20 @@ type ElevationContainerProps = {
  * This is an internal building block — consumers control elevation via the
  * `elevation` prop on public components (Button, Card, FAB, etc.).
  *
+ * ## Interpolation
+ *
+ * M3 defines 6 discrete elevation levels (0–5). This component interpolates
+ * between adjacent levels using linear fractional blending: a value of 2.5
+ * produces shadow properties halfway between level 2 and level 3. This enables
+ * smooth spring-animated transitions driven by Pressable interaction progress.
+ *
+ * ## Interaction blending
+ *
+ * When `elevations` is provided, interaction progress from the nearest Pressable
+ * is used to blend from the rest level toward the active interaction's target.
+ * Priority follows M3: hover → focus → press → drag (additive, highest priority
+ * layers on top). Early-exit guards skip blending math for inactive states.
+ *
  * @example
  * ```tsx
  * // Static level inside a component implementation
@@ -64,6 +78,11 @@ type ElevationContainerProps = {
  * // Animated level driven by a SharedValue
  * <ElevationContainer level={elevationSV}>
  *   <ShapeContainer shape="medium">...</ShapeContainer>
+ * </ElevationContainer>
+ *
+ * // With hover elevation lift (level 3 → 4 on hover)
+ * <ElevationContainer level={3} elevations={{ hover: 4 }}>
+ *   <ShapeContainer shape="large">...</ShapeContainer>
  * </ElevationContainer>
  * ```
  */
@@ -103,6 +122,8 @@ function ElevationContainer({ level, elevations, shadowColor = 'shadow', style, 
       l = Math.max(0, Math.min(5, l));
     }
 
+    // Linear fractional interpolation between adjacent discrete M3 levels.
+    // e.g. l=2.5 → lo=2, hi=3, frac=0.5 → blend level 2 and 3 shadow properties 50/50.
     const lo = Math.floor(l) as ElevationLevel;
     const hi = Math.min(5, lo + 1) as ElevationLevel;
     const frac = l - lo;
@@ -110,6 +131,8 @@ function ElevationContainer({ level, elevations, shadowColor = 'shadow', style, 
     const loStyle = t.elevation[lo];
     const hiStyle = t.elevation[hi];
 
+    // Shadow properties: iOS uses shadowOffset/shadowOpacity/shadowRadius;
+    // Android uses the `elevation` shorthand. Both are interpolated.
     return {
       shadowColor: t.scheme[shadowColor],
       shadowOffset: {
