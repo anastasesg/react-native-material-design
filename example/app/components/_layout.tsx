@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { Drawer, DrawerAppbar } from 'react-native-material-design/navigation/expo/drawer';
 import { Rail, RailAppbar } from 'react-native-material-design/navigation/expo/rail';
@@ -5,8 +6,8 @@ import { AppbarAction, AppbarActions, AppbarTitle } from 'react-native-material-
 import type { MaterialSymbol } from 'react-native-material-design/ui/icon';
 import { IconButtonIcon } from 'react-native-material-design/ui/icon-button';
 
-// M3 expanded breakpoint — switch from Drawer to Rail
-const EXPANDED_BREAKPOINT = 840;
+import { SettingsPanel } from '../../components/settings-panel';
+import { EXPANDED_BREAKPOINT } from '../../constants/breakpoints';
 
 type ScreenDef = {
   name: string;
@@ -67,7 +68,7 @@ const SCREENS: ScreenDef[] = [
   { name: 'tooltip', label: 'Tooltips', icon: 'tooltip', section: 'All other' },
 ];
 
-function DrawerLayout() {
+function DrawerLayout({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <Drawer
       appbar={
@@ -79,6 +80,9 @@ function DrawerLayout() {
           <AppbarActions>
             <AppbarAction accessibilityLabel="Search">
               <IconButtonIcon name="search" />
+            </AppbarAction>
+            <AppbarAction accessibilityLabel="Settings" onPress={onOpenSettings}>
+              <IconButtonIcon name="settings" />
             </AppbarAction>
           </AppbarActions>
         </DrawerAppbar>
@@ -95,7 +99,7 @@ function DrawerLayout() {
   );
 }
 
-function RailLayout() {
+function RailLayout({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <Rail
       mode="standard"
@@ -105,6 +109,9 @@ function RailLayout() {
           <AppbarActions>
             <AppbarAction accessibilityLabel="Search">
               <IconButtonIcon name="search" />
+            </AppbarAction>
+            <AppbarAction accessibilityLabel="Settings" onPress={onOpenSettings}>
+              <IconButtonIcon name="settings" />
             </AppbarAction>
           </AppbarActions>
         </RailAppbar>
@@ -124,7 +131,13 @@ function RailLayout() {
 export default function ComponentsLayout() {
   const { width } = useWindowDimensions();
   const useRailLayout = width >= EXPANDED_BREAKPOINT;
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = React.useCallback(() => setSettingsOpen(true), []);
 
-  if (useRailLayout) return <RailLayout />;
-  return <DrawerLayout />;
+  return (
+    <>
+      {useRailLayout ? <RailLayout onOpenSettings={openSettings} /> : <DrawerLayout onOpenSettings={openSettings} />}
+      <SettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} />
+    </>
+  );
 }

@@ -1,6 +1,7 @@
-import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 
 import type { Breakpoints, Themes } from './theme';
+import { initThemeSettings } from './theme/settings';
 import { generateThemes, type GenerateThemesOptions, loadFonts } from './utilities';
 import { buildBreakpoints } from './utilities/defaults';
 
@@ -53,8 +54,8 @@ type ConfigureOptions = GenerateThemesOptions & {
  * ```
  */
 function configure(options: ConfigureOptions = {}): Themes {
-  const { adaptiveThemes = true, breakpoints, ...themeOptions } = options;
-  const themes = generateThemes(themeOptions);
+  const { adaptiveThemes = true, breakpoints, sourceColor, motionScheme, ...staticOptions } = options;
+  const themes = generateThemes({ ...staticOptions, sourceColor, motionScheme });
 
   StyleSheet.configure({
     themes,
@@ -63,6 +64,19 @@ function configure(options: ConfigureOptions = {}): Themes {
       adaptiveThemes,
     },
   });
+
+  // Initialize the runtime settings store with values matching this configuration.
+  // sourceColor and motionScheme may be undefined — initThemeSettings merges
+  // against DEFAULT_SETTINGS, so undefined fields get the canonical defaults.
+  initThemeSettings(
+    {
+      sourceColor,
+      themeMode: adaptiveThemes ? 'auto' : 'light',
+      motionScheme,
+      reducedMotion: 'device',
+    },
+    staticOptions,
+  );
 
   loadFonts().catch((error) => {
     if (__DEV__) {
@@ -73,34 +87,5 @@ function configure(options: ConfigureOptions = {}): Themes {
   return themes;
 }
 
-// ---------------------------------------------------------------------------
-// Runtime helpers
-// ---------------------------------------------------------------------------
-
-/** Sets the active theme to 'light' or 'dark'. Disables adaptive themes. */
-function setTheme(theme: 'light' | 'dark'): void {
-  UnistylesRuntime.setTheme(theme);
-}
-
-/** Enables or disables automatic light/dark switching based on device settings. */
-function setAdaptiveThemes(enabled: boolean): void {
-  UnistylesRuntime.setAdaptiveThemes(enabled);
-}
-
-/**
- * Regenerates themes from a new source color and applies them immediately.
- * Useful for apps that let users pick a brand color at runtime.
- *
- * @example
- * ```tsx
- * import { updateSourceColor } from 'react-native-material-design';
- *
- * updateSourceColor('#FF5722');
- * ```
- */
-function updateSourceColor(sourceColor: string, options: Omit<ConfigureOptions, 'sourceColor'> = {}): Themes {
-  return configure({ ...options, sourceColor });
-}
-
 export type { ConfigureOptions };
-export { configure, setAdaptiveThemes, setTheme, updateSourceColor };
+export { configure };

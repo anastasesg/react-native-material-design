@@ -2,7 +2,7 @@
 
 This document describes the internal architecture of the component library — the building blocks, patterns, and systems that every M3 component is built on.
 
-Source: [`src/components/custom/`](../src/components/custom/) · [`src/hooks/`](../src/hooks/) · [`src/utilities/`](../src/utilities/) · [`src/theme/`](../src/theme/)
+Source: [`src/components/custom/`](../src/components/custom/) · [`src/hooks/`](../src/hooks/) · [`src/utilities/`](../src/utilities/) · [`src/theme/`](../src/theme/) · [`src/configure.ts`](../src/configure.ts)
 
 ---
 
@@ -295,6 +295,41 @@ Theme
 └─ typography: Typography  ← type scale (display, headline, title, body, label × small/medium/large)
 ```
 
+### Runtime Theme Settings
+
+**Source:** [`src/theme/settings.ts`](../src/theme/settings.ts)
+
+A centralized, reactive store for all runtime-mutable theme settings (source color, theme mode, motion scheme, reduced motion). Built on `useSyncExternalStore` for React integration.
+
+#### Architecture
+
+The store holds a frozen `ThemeSettings` snapshot. Every call to `updateThemeSettings` short-circuits if no value actually changed (preserving referential stability), then selectively applies side effects and notifies subscribers:
+
+```
+updateThemeSettings({ sourceColor: '#FF5722' })
+  │
+  ├─ No values changed?   → return (same snapshot reference, no re-renders)
+  ├─ Replace _settings with new frozen object
+  ├─ sourceColor changed? → generateThemes() + UnistylesRuntime.updateTheme()
+  ├─ motionScheme changed? → buildMotion() + patch motion on existing themes
+  ├─ themeMode changed?   → UnistylesRuntime.setAdaptiveThemes/setTheme()
+  ├─ reducedMotion changed? → (no side effect — components react via re-render)
+  └─ Notify all useSyncExternalStore subscribers
+```
+
+This design avoids regenerating themes on every update — only `sourceColor` triggers the expensive `@material/material-color-utilities` pipeline. `motionScheme` changes patch only the motion springs on existing themes (via `buildMotion`), skipping color generation entirely.
+
+#### Initialization
+
+`configure()` calls `initThemeSettings()` internally, capturing:
+
+- The initial runtime settings (sourceColor, themeMode, motionScheme, reducedMotion)
+- The static generation options (fontFamily, overrides, lightOverrides, darkOverrides) so that future `updateThemeSettings` calls preserve them
+
+#### Persistence
+
+The store is ephemeral by default. `onThemeSettingsChange(callback)` registers a callback invoked after every update — consumers plug in AsyncStorage, MMKV, or any storage layer.
+
 ### Unistyles Integration
 
 Styles use `StyleSheet.create` from `react-native-unistyles` for theme-aware styling:
@@ -412,7 +447,7 @@ if (progress) {
 
 ### useMotionConfig
 
-Centralized spring config resolution for all animations. Returns `{ effects, spatial }` — SharedValues containing the resolved spring configs for use with `withSpring` on either thread. Handles speed-to-spring-key mapping, motion scheme resolution, and reduced motion (spatial springs snap near-instantly, effect springs use faster fades).
+Centralized spring config resolution for all animations. Returns `{ effects, spatial }` — SharedValues containing the resolved spring configs for use with `withSpring` on either thread. Handles speed-to-spring-key mapping, motion scheme resolution, and reduced motion (spatial springs snap near-instantly, effect springs use faster fades). Reads `reducedMotion` from the theme settings store via `useThemeSettings()`, so changes to reduced motion preference propagate to all animated components automatically.
 
 ```tsx
 const motion = useMotionConfig('fast', scheme);
@@ -457,10 +492,10 @@ Followed by:
 
 ### Export Structure
 
-| Entry Point                                      | Contents                        |
-| ------------------------------------------------ | ------------------------------- |
-| `react-native-material-design`                   | Theme utilities, types          |
-| `react-native-material-design/init`              | Unistyles config + font loading |
-| `react-native-material-design/ui/*`              | Individual UI components        |
-| `react-native-material-design/navigation/*`      | React Navigation adapters       |
-| `react-native-material-design/navigation/expo/*` | Expo Router adapters            |
+| Entry Point                                      | Contents                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| `react-native-material-design`                   | `configure`, theme settings API, generation utilities, types |
+| `react-native-material-design/init`              | Unistyles config + font loading                              |
+| `react-native-material-design/ui/*`              | Individual UI components                                     |
+| `react-native-material-design/navigation/*`      | React Navigation adapters                                    |
+| `react-native-material-design/navigation/expo/*` | Expo Router adapters                                         |

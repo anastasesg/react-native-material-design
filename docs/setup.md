@@ -541,33 +541,95 @@ npx react-native-asset
 
 ---
 
-## Runtime Theme Control
+## Runtime Theme Settings
+
+The library provides a unified store for all runtime-mutable theme settings. Every change is applied immediately — `StyleSheet.create` stylesheets and `useAnimatedTheme()` worklets update automatically.
+
+### Reading Settings
 
 ```tsx
-import { setTheme, setAdaptiveThemes, updateSourceColor } from 'react-native-material-design';
+import { useThemeSettings } from 'react-native-material-design';
 
-setTheme('dark');
-setTheme('light');
-
-setAdaptiveThemes(true);
-
-updateSourceColor('#FF5722');
-updateSourceColor('#FF5722', { motionScheme: 'standard' });
+function ThemeIndicator() {
+  const { sourceColor, themeMode, motionScheme, reducedMotion } = useThemeSettings();
+  return (
+    <Text>
+      Color: {sourceColor}, Mode: {themeMode}
+    </Text>
+  );
+}
 ```
 
-Theme changes are applied reactively — all `StyleSheet.create` stylesheets and `useAnimatedTheme()` worklets update automatically.
+For non-React contexts (event handlers, middleware), use `getThemeSettings()` instead.
+
+### Updating Settings
+
+```tsx
+import { updateThemeSettings } from 'react-native-material-design';
+
+// Single field
+updateThemeSettings({ sourceColor: '#FF5722' });
+
+// Multiple fields in one atomic update
+updateThemeSettings({
+  sourceColor: '#1B6B52',
+  motionScheme: 'standard',
+  themeMode: 'dark',
+});
+```
+
+Updates are efficient — full theme regeneration (the expensive `@material/material-color-utilities` pipeline) only runs when `sourceColor` changes. Changing `motionScheme` patches only the motion springs on existing themes. Changing `themeMode` only toggles unistyles' adaptive/manual mode. Changing `reducedMotion` has no side effect; components react via re-render.
+
+### Available Settings
+
+| Field           | Type                          | Default        | Description                                    |
+| --------------- | ----------------------------- | -------------- | ---------------------------------------------- |
+| `sourceColor`   | `string`                      | `'#6750A4'`    | Hex color seed for M3 dynamic color generation |
+| `themeMode`     | `'auto' \| 'light' \| 'dark'` | `'auto'`       | `'auto'` follows device; others force a scheme |
+| `motionScheme`  | `'expressive' \| 'standard'`  | `'expressive'` | Spring bounciness profile                      |
+| `reducedMotion` | `'device' \| true \| false`   | `'device'`     | `'device'` defers to OS; `true`/`false` forces |
+
+### Persisting Settings
+
+The settings store is ephemeral — it resets on app restart. To persist settings, register a callback with `onThemeSettingsChange`:
+
+```tsx
+import { onThemeSettingsChange, updateThemeSettings } from 'react-native-material-design';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Save on every change
+const unsubscribe = onThemeSettingsChange((settings) => {
+  AsyncStorage.setItem('theme-settings', JSON.stringify(settings));
+});
+
+// Restore on app start (after configure)
+const saved = await AsyncStorage.getItem('theme-settings');
+if (saved) {
+  updateThemeSettings(JSON.parse(saved));
+}
+```
+
+### API Reference
+
+| Export                   | Kind     | Description                                                |
+| ------------------------ | -------- | ---------------------------------------------------------- |
+| `useThemeSettings()`     | Hook     | Returns reactive settings snapshot (re-renders on change)  |
+| `getThemeSettings()`     | Function | Returns current snapshot (non-reactive, for outside React) |
+| `updateThemeSettings(p)` | Function | Merges partial settings and applies changes                |
+| `onThemeSettingsChange`  | Function | Registers persistence/side-effect callback                 |
+| `subscribeThemeSettings` | Function | Low-level subscribe (for custom `useSyncExternalStore`)    |
 
 ---
 
 ## Entry Points
 
-| Import Path                                      | Contents                                                                                                                       |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `react-native-material-design`                   | `configure`, `generateTheme`, `generateThemes`, `setTheme`, `setAdaptiveThemes`, `updateSourceColor`, `loadFonts`, theme types |
-| `react-native-material-design/init`              | Side-effect only — calls `configure()` with defaults. No named exports.                                                        |
-| `react-native-material-design/ui/*`              | UI components (per-component imports)                                                                                          |
-| `react-native-material-design/navigation/*`      | React Navigation adapters (requires `@react-navigation/native`)                                                                |
-| `react-native-material-design/navigation/expo/*` | Expo Router adapters (requires `expo-router`)                                                                                  |
+| Import Path                                      | Contents                                                                                                                                                         |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `react-native-material-design`                   | `configure`, `generateTheme`, `generateThemes`, `updateThemeSettings`, `useThemeSettings`, `getThemeSettings`, `onThemeSettingsChange`, `loadFonts`, theme types |
+| `react-native-material-design/init`              | Side-effect only — calls `configure()` with defaults. No named exports.                                                                                          |
+| `react-native-material-design/ui/*`              | UI components (per-component imports)                                                                                                                            |
+| `react-native-material-design/navigation/*`      | React Navigation adapters (requires `@react-navigation/native`)                                                                                                  |
+| `react-native-material-design/navigation/expo/*` | Expo Router adapters (requires `expo-router`)                                                                                                                    |
 
 ### Why Per-Component Imports?
 

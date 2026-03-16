@@ -3,6 +3,7 @@ export * from './elevation';
 export * from './motion';
 export * from './pallette';
 export * from './scheme';
+export * from './settings';
 export * from './shape';
 export * from './state';
 export * from './theme';

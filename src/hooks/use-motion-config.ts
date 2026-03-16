@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { UnistylesRuntime } from 'react-native-unistyles';
 
 import type { Motion, MotionScheme, SpringConfig, SpringSet } from '@/theme';
+import { getThemeSettings, subscribeThemeSettings } from '@/theme/settings';
 
 /** Element size — determines spring speed. */
 type MotionSpeed = 'fast' | 'default' | 'slow';
@@ -70,7 +71,11 @@ function resolveSpring(
  * @param scheme - Override the active motion scheme for this component.
  */
 function useMotionConfig(speed: MotionSpeed, scheme?: MotionScheme): MotionConfig {
-  const reducedMotion = useReducedMotion();
+  const deviceReducedMotion = useReducedMotion();
+  // Subscribe to reducedMotion and motionScheme only — avoids re-renders on sourceColor/themeMode.
+  const override = useSyncExternalStore(subscribeThemeSettings, () => getThemeSettings().reducedMotion);
+  const motionScheme = useSyncExternalStore(subscribeThemeSettings, () => getThemeSettings().motionScheme);
+  const reducedMotion = override === 'device' ? deviceReducedMotion : override;
   const { motion } = UnistylesRuntime.getTheme();
 
   const effects = useSharedValue(resolveSpring(motion, speed, 'effects', reducedMotion, scheme));
@@ -86,7 +91,7 @@ function useMotionConfig(speed: MotionSpeed, scheme?: MotionScheme): MotionConfi
     const { motion: m } = UnistylesRuntime.getTheme();
     effects.value = resolveSpring(m, speed, 'effects', reducedMotion, scheme);
     spatial.value = resolveSpring(m, speed, 'spatial', reducedMotion, scheme);
-  }, [effects, spatial, speed, scheme, reducedMotion]);
+  }, [effects, spatial, speed, scheme, reducedMotion, motionScheme]);
 
   return { effects, spatial, reducedMotion };
 }
