@@ -13,7 +13,7 @@ import { useControllableState } from '@/hooks';
 import type { Scheme } from '@/theme/scheme';
 import { createComponentContext } from '@/utilities';
 
-import { ShapeContainer, type ShapeToken, StateLayer } from '../custom';
+import { type ShapeToken, StateLayer, Surface } from '../custom';
 import { useButtonGroupItem } from './button-group';
 import { Icon, type IconProps, type MaterialSymbol } from './icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from './tooltips';
@@ -40,7 +40,7 @@ const [IconButtonProvider, useIconButton] = createComponentContext<IconButtonCtx
 /**
  * Computes the rest (unpressed) shape token from M3 spec rules.
  *
- * - Rounded buttons always use `'full'` (pill — capped at containerHeight/2 in ShapeContainer)
+ * - Rounded buttons always use `'full'` (pill — capped at containerHeight/2 in Surface)
  * - Square buttons scale with size:
  *   - xsmall/small → `'medium'` (12dp)
  *   - medium → `'large'` (16dp)
@@ -224,7 +224,7 @@ type IconButtonProps = Omit<PressableProps, 'disabled'> & {
   tooltip?: string;
 
   /**
-   * Style applied to the inner ShapeContainer (the visible rounded/square container).
+   * Style applied to the inner Surface (the visible rounded/square container).
    * Use this for container-level overrides (background, border, padding).
    * Use `style` for the outer Pressable wrapper (margin, positioning, touch area).
    */
@@ -245,7 +245,7 @@ type IconButtonProps = Omit<PressableProps, 'disabled'> & {
  *
  * ```
  * Pressable                    ← RNGH gesture tracking, interaction progress context
- *   └─ ShapeContainer          ← animated borderRadius (shape morphing + focus ring)
+ *   └─ Surface          ← animated borderRadius (shape morphing + focus ring)
  *       ├─ StateLayer          ← press/hover/focus tint overlay + disabled container overlay
  *       └─ IconButtonProvider  ← React Context (size, shape, variant, selection, disabled)
  *           └─ IconButtonIcon  ← auto-sized Material Symbol icon
@@ -397,14 +397,14 @@ function IconButton({
       accessibilityHint={accessibilityLabel && tooltip ? tooltip : undefined}
       {...props}
     >
-      <ShapeContainer
+      <Surface
         shape={restShape}
-        shapes={pressedShape ? { press: pressedShape } : undefined}
+        interactions={pressedShape ? { shapes: { press: pressedShape } } : undefined}
         style={[styles.content, containerStyle]}
       >
         <StateLayer color={stateLayerColor} disabled={disabled} disabledOpacity={DISABLED_STATE_LAYER_OPACITY} />
         <IconButtonProvider value={ctx}>{children}</IconButtonProvider>
-      </ShapeContainer>
+      </Surface>
     </Pressable>
   );
 
@@ -485,7 +485,7 @@ function IconButtonIcon({ selectedName, style, ...props }: IconButtonIconProps) 
 // Layout model:
 //
 //   root (Pressable)       ← minWidth/minHeight ensures 48dp touch target for xsmall/small
-//     └─ content (ShapeContainer) ← fixed height per size tier, paddingHorizontal per width×size
+//     └─ content (Surface) ← fixed height per size tier, paddingHorizontal per width×size
 //         ├─ StateLayer    ← absolute-fill overlay
 //         └─ Icon          ← centered icon glyph
 //
@@ -555,13 +555,12 @@ const styles = StyleSheet.create((theme) => ({
       },
     },
   },
-  // The visible button container. Rendered inside ShapeContainer (which clips to
+  // The visible button container. Rendered inside Surface (which clips to
   // animated borderRadius). Layout, colors, and borders are all variant-driven.
   content: {
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    overflow: 'hidden',
 
     variants: {
       size: {

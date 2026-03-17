@@ -14,9 +14,16 @@ import type { Scheme } from '@/theme/scheme';
 
 import { useControllableState, useMotionConfig } from '../../hooks';
 import { createComponentContext } from '../../utilities';
-import { Pressable, type PressableProps, ShapeContainer, type ShapeToken, StateLayer, type TapEvent } from '../custom';
-import { ElevationContainer, type InteractionElevations } from '../custom/elevation-container';
-import type { InteractionShapes, ShapeSpec } from '../custom/shape-container';
+import {
+  Pressable,
+  type PressableProps,
+  type ShapeSpec,
+  type ShapeToken,
+  StateLayer,
+  Surface,
+  type SurfaceInteractions,
+  type TapEvent,
+} from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps, type TextSize, type TextVariant } from './text';
 
@@ -168,9 +175,9 @@ function getSplitButtonStateLayerColor(variant: SplitButtonVariant): keyof Schem
 const SPLIT_BUTTON_DISABLED_CONTAINER_OPACITY = 0.1;
 
 /** M3 filled/tonal: hover lifts from level 0 → level 1. */
-const SURFACE_HOVER: InteractionElevations = { hover: 1 };
+const SURFACE_HOVER: SurfaceInteractions['elevations'] = { hover: 1 };
 /** M3 elevated: hover lifts from level 1 → level 2, press stays at level 1. */
-const ELEVATED_HOVER: InteractionElevations = { hover: 2, press: 1 };
+const ELEVATED_HOVER: SurfaceInteractions['elevations'] = { hover: 2, press: 1 };
 
 /** Resolves elevation level and interaction elevations for a given variant + disabled state. */
 function resolveElevation(variant: SplitButtonVariant, disabled: boolean) {
@@ -232,18 +239,16 @@ const TRAILING_ICON_OFFSET: Record<SplitButtonSize, number> = {
  * ```
  * View (root)                           ← non-pressable layout container
  *   ├─ Pressable                        ← leading half gesture handling
- *   │    └─ ElevationContainer          ← shadow (elevated variant only)
- *   │        └─ ShapeContainer          ← animated asymmetric border radius
- *   │            ├─ StateLayer          ← press/hover/focus tint overlay
- *   │            ├─ SplitButtonIcon     ← auto-sized icon
- *   │            └─ SplitButtonLabel    ← auto-typed text label
+ *   │    └─ Surface              ← animated borderRadius + elevation shadow + focus ring
+ *   │        ├─ StateLayer              ← press/hover/focus tint overlay
+ *   │        ├─ SplitButtonIcon         ← auto-sized icon
+ *   │        └─ SplitButtonLabel        ← auto-typed text label
  *   │
  *   └─ Pressable                        ← trailing half gesture handling
- *        └─ ElevationContainer          ← shadow (elevated variant only)
- *            └─ ShapeContainer          ← animated asymmetric border radius
- *                ├─ StateLayer          ← press/hover/focus tint overlay
- *                └─ Animated.View       ← chevron rotation animation
- *                    └─ SplitButtonTrailingIcon
+ *        └─ Surface              ← animated borderRadius + elevation shadow + focus ring
+ *            ├─ StateLayer              ← press/hover/focus tint overlay
+ *            └─ Animated.View           ← chevron rotation animation
+ *                └─ SplitButtonTrailingIcon
  * ```
  *
  * ## Shape
@@ -309,7 +314,7 @@ type SplitButtonLeadingProps = Omit<PressableProps, 'style'> & {
   /** Additional style for the outer Pressable wrapper. */
   style?: StyleProp<ViewStyle>;
 
-  /** Additional style for the inner ShapeContainer. */
+  /** Additional style for the inner Surface. */
   containerStyle?: StyleProp<ViewStyle>;
 
   /**
@@ -349,7 +354,7 @@ type SplitButtonLeadingProps = Omit<PressableProps, 'style'> & {
    * Per-interaction target shapes. Overrides the default press/hover/focus shape morph.
    * Pass `{}` to disable all interaction shape morphing.
    */
-  interactionShapes?: InteractionShapes;
+  interactionShapes?: SurfaceInteractions['shapes'];
 };
 
 /**
@@ -363,11 +368,10 @@ type SplitButtonLeadingProps = Omit<PressableProps, 'style'> & {
  *
  * ```
  * Pressable                    ← RNGH gesture tracking, interaction progress context
- *   └─ ElevationContainer      ← platform shadow (elevated variant only)
- *       └─ ShapeContainer      ← animated asymmetric borderRadius + focus ring
- *           ├─ StateLayer      ← press/hover/focus tint overlay + disabled container overlay
- *           ├─ SplitButtonIcon  ← auto-sized Material Symbol icon
- *           └─ SplitButtonLabel ← auto-typed Text label
+ *   └─ Surface          ← animated borderRadius + elevation shadow + focus ring
+ *       ├─ StateLayer          ← press/hover/focus tint overlay + disabled container overlay
+ *       ├─ SplitButtonIcon     ← auto-sized Material Symbol icon
+ *       └─ SplitButtonLabel    ← auto-typed Text label
  * ```
  *
  * ## Toggle Mode
@@ -514,18 +518,21 @@ function SplitButtonLeading({
       {...(toggle && { 'aria-pressed': selected })}
       {...props}
     >
-      <ElevationContainer level={elevation.level} elevations={elevation.interactions}>
-        <ShapeContainer shape={restShape} shapes={shapes} style={[styles.leadingContainer, containerStyle]}>
-          {/* Outlined disabled: no container tint — spec only shows retained border + dimmed content.
-              Other variants: 0.1 matches md.comp.split-button.disabled.container.opacity. */}
-          <StateLayer
-            color={stateLayerColor}
-            disabled={disabled}
-            disabledOpacity={variant === 'outlined' ? 0 : SPLIT_BUTTON_DISABLED_CONTAINER_OPACITY}
-          />
-          {children}
-        </ShapeContainer>
-      </ElevationContainer>
+      <Surface
+        shape={restShape}
+        elevation={elevation.level}
+        interactions={{ shapes, elevations: elevation.interactions }}
+        style={[styles.leadingContainer, containerStyle]}
+      >
+        {/* Outlined disabled: no container tint — spec only shows retained border + dimmed content.
+            Other variants: 0.1 matches md.comp.split-button.disabled.container.opacity. */}
+        <StateLayer
+          color={stateLayerColor}
+          disabled={disabled}
+          disabledOpacity={variant === 'outlined' ? 0 : SPLIT_BUTTON_DISABLED_CONTAINER_OPACITY}
+        />
+        {children}
+      </Surface>
     </Pressable>
   );
 }
@@ -549,7 +556,7 @@ type SplitButtonTrailingProps = Omit<PressableProps, 'style'> & {
   /** Additional style for the outer Pressable wrapper. */
   style?: StyleProp<ViewStyle>;
 
-  /** Additional style for the inner ShapeContainer. */
+  /** Additional style for the inner Surface. */
   containerStyle?: StyleProp<ViewStyle>;
 
   /**
@@ -562,7 +569,7 @@ type SplitButtonTrailingProps = Omit<PressableProps, 'style'> & {
    * Per-interaction target shapes. Overrides the default press/hover/focus shape morph.
    * Pass `{}` to disable all interaction shape morphing.
    */
-  interactionShapes?: InteractionShapes;
+  interactionShapes?: SurfaceInteractions['shapes'];
 };
 
 /**
@@ -577,11 +584,10 @@ type SplitButtonTrailingProps = Omit<PressableProps, 'style'> & {
  *
  * ```
  * Pressable                       ← RNGH gesture tracking, interaction progress context
- *   └─ ElevationContainer         ← platform shadow (elevated variant only)
- *       └─ ShapeContainer         ← animated asymmetric borderRadius + focus ring
- *           ├─ StateLayer         ← press/hover/focus tint overlay + disabled container overlay
- *           └─ Animated.View      ← chevron rotation animation (independent of shape)
- *               └─ children       ← SplitButtonTrailingIcon (default) or custom content
+ *   └─ Surface              ← animated borderRadius + elevation shadow + focus ring
+ *       ├─ StateLayer              ← press/hover/focus tint overlay + disabled container overlay
+ *       └─ Animated.View           ← chevron rotation animation (independent of shape)
+ *           └─ children            ← SplitButtonTrailingIcon (default) or custom content
  * ```
  *
  * ## Shape
@@ -739,19 +745,22 @@ function SplitButtonTrailing({
       {...(Platform.OS === 'ios' && { accessibilityHint: open ? 'Expanded' : 'Collapsed' })}
       {...props}
     >
-      <ElevationContainer level={elevation.level} elevations={elevation.interactions}>
-        <ShapeContainer shape={restShape} shapes={shapes} style={[styles.trailingContainer, containerStyle]}>
-          <StateLayer
-            color={stateLayerColor}
-            disabled={disabled}
-            disabledOpacity={variant === 'outlined' ? 0 : SPLIT_BUTTON_DISABLED_CONTAINER_OPACITY}
-          />
-          {/* Default children: SplitButtonTrailingIcon renders the chevron.
-              Consumers can override children to wrap the icon (e.g., with Badge)
-              while the Animated.View handles the rotation animation. */}
-          <Animated.View style={animatedIconStyle}>{children ?? <SplitButtonTrailingIcon />}</Animated.View>
-        </ShapeContainer>
-      </ElevationContainer>
+      <Surface
+        shape={restShape}
+        elevation={elevation.level}
+        interactions={{ shapes, elevations: elevation.interactions }}
+        style={[styles.trailingContainer, containerStyle]}
+      >
+        <StateLayer
+          color={stateLayerColor}
+          disabled={disabled}
+          disabledOpacity={variant === 'outlined' ? 0 : SPLIT_BUTTON_DISABLED_CONTAINER_OPACITY}
+        />
+        {/* Default children: SplitButtonTrailingIcon renders the chevron.
+            Consumers can override children to wrap the icon (e.g., with Badge)
+            while the Animated.View handles the rotation animation. */}
+        <Animated.View style={animatedIconStyle}>{children ?? <SplitButtonTrailingIcon />}</Animated.View>
+      </Surface>
     </Pressable>
   );
 }
@@ -872,18 +881,16 @@ function SplitButtonLabel({ style, ...props }: SplitButtonLabelProps) {
 //
 //   View (root)                          ← non-pressable row container with 2dp gap
 //     ├─ Pressable (leadingRoot)         ← RNGH gesture tracking for the primary action
-//     │    └─ ElevationContainer         ← shadow rendering (elevated variant only)
-//     │        └─ ShapeContainer          ← animated borderRadius (asymmetric corners)
-//     │            ├─ StateLayer          ← press/hover/focus tint + disabled overlay
-//     │            ├─ SplitButtonIcon     ← auto-sized Material Symbol icon
-//     │            └─ SplitButtonLabel    ← auto-typed Text label
+//     │    └─ Surface              ← animated borderRadius + elevation shadow + focus ring
+//     │        ├─ StateLayer              ← press/hover/focus tint + disabled overlay
+//     │        ├─ SplitButtonIcon         ← auto-sized Material Symbol icon
+//     │        └─ SplitButtonLabel        ← auto-typed Text label
 //     │
 //     └─ Pressable (trailingRoot)        ← RNGH gesture tracking for the menu trigger
-//          └─ ElevationContainer         ← shadow rendering (elevated variant only)
-//              └─ ShapeContainer          ← animated borderRadius (asymmetric corners)
-//                  ├─ StateLayer          ← press/hover/focus tint + disabled overlay
-//                  └─ Animated.View       ← chevron rotation animation
-//                      └─ SplitButtonTrailingIcon ← keyboard_arrow_down chevron
+//          └─ Surface              ← animated borderRadius + elevation shadow + focus ring
+//              ├─ StateLayer              ← press/hover/focus tint + disabled overlay
+//              └─ Animated.View           ← chevron rotation animation
+//                  └─ SplitButtonTrailingIcon ← keyboard_arrow_down chevron
 //
 // Key difference from Button/IconButton: the root is a plain View (not a Pressable),
 // so each half manages its own independent gesture handling and interaction animations.
@@ -931,7 +938,7 @@ const styles = StyleSheet.create((theme) => ({
   // -- Leading button --
   // Empty root — exists as the anchor for consumer `style` prop overrides.
   leadingRoot: {},
-  // The visible leading container. Rendered inside ShapeContainer (which clips to
+  // The visible leading container. Rendered inside Surface (which clips to
   // animated borderRadius). Uses paddingStart/paddingEnd rather than paddingHorizontal
   // because the outer edge (start) is the pill end and needs different visual weight
   // from the inner edge (end) adjacent to the split gap.
@@ -939,7 +946,6 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
     // No dedicated split-button token for icon-label gap — inferred from Button spec
     // (md.comp.button.icon-label-space = 8dp across all sizes).
     gap: 8,
@@ -979,7 +985,6 @@ const styles = StyleSheet.create((theme) => ({
   trailingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
 
     variants: {
       size: {

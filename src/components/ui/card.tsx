@@ -8,7 +8,7 @@ import React from 'react';
 import { type StyleProp, View, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { Pressable, type PressableProps, ShapeContainer, StateLayer } from '../custom';
+import { Pressable, type PressableProps, StateLayer, Surface } from '../custom';
 
 // =============================================================================
 // Types
@@ -62,10 +62,10 @@ function Card({
       accessibilityRole="button"
       {...props}
     >
-      <ShapeContainer shape="medium" style={[styles.container, contentStyle]}>
+      <Surface shape="medium" style={[styles.container, contentStyle]}>
         <StateLayer color="onSurface" disabled={disabled} style={stateStyle} />
         {children}
-      </ShapeContainer>
+      </Surface>
     </Pressable>
   );
 }
@@ -127,9 +127,7 @@ const styles = StyleSheet.create((theme) => ({
       },
     ],
   },
-  container: {
-    overflow: 'hidden',
-  },
+  container: {},
 }));
 
 // =============================================================================

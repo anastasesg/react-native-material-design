@@ -38,10 +38,10 @@ type StateLayerProps = {
  * @example
  * ```tsx
  * <Pressable onPress={handlePress}>
- *   <ShapeContainer shape="full">
+ *   <Surface shape="full">
  *     <StateLayer color="onPrimary" />
  *     <ButtonLabel>Click me</ButtonLabel>
- *   </ShapeContainer>
+ *   </Surface>
  * </Pressable>
  * ```
  */

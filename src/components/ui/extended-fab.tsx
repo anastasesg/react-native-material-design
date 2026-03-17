@@ -9,19 +9,18 @@ import { type StyleProp, type View, type ViewStyle } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { ElevationContainer, type InteractionElevations } from '@/components/custom/elevation-container';
 import type { ElevationLevel, Scheme } from '@/theme';
 
 import { useControllableState } from '../../hooks';
 import { childGuard, createComponentContext, warnUnexpectedChild } from '../../utilities';
 import {
-  type InteractionShapes,
   Pressable,
   type PressableProps,
-  ShapeContainer,
   type ShapeSpec,
   type ShapeToken,
   StateLayer,
+  Surface,
+  type SurfaceInteractions,
   type TapEvent,
 } from '../custom';
 import { Icon, type IconProps, type MaterialSymbol } from './icon';
@@ -110,7 +109,7 @@ const EFAB_STATE_LAYER_COLOR: Record<ExtendedFABColorStyle, keyof Scheme> = {
 };
 
 /** Default hover elevation for Extended FAB (M3 spec: level 3 → level 4 on hover). */
-const EFAB_HOVER_ELEVATIONS: InteractionElevations = { hover: 4 };
+const EFAB_HOVER_ELEVATIONS: SurfaceInteractions['elevations'] = { hover: 4 };
 
 /**
  * M3 spec: `md.comp.extended-fab.*.disabled.container.opacity` = 0.12 = `theme.state.disabledContainer`.
@@ -194,7 +193,7 @@ type ExtendedFABProps = Omit<PressableProps, 'disabled' | 'style' | 'children'> 
    * <ExtendedFAB interactionShapes={{}} />
    * ```
    */
-  interactionShapes?: InteractionShapes;
+  interactionShapes?: SurfaceInteractions['shapes'];
   /**
    * Elevation level (0–5). Accepts a static number or a `SharedValue<number>`
    * from `useSharedValue()` for animated transitions.
@@ -241,7 +240,7 @@ type ExtendedFABProps = Omit<PressableProps, 'disabled' | 'style' | 'children'> 
   selectedTooltip?: string;
   /** Style applied to the root `Pressable` wrapper (controls outer positioning/margins). */
   style?: StyleProp<ViewStyle>;
-  /** Style applied to the inner `ShapeContainer` (the visible FAB container). */
+  /** Style applied to the inner `Surface` (the visible FAB container). */
   containerStyle?: StyleProp<ViewStyle>;
 };
 
@@ -281,8 +280,7 @@ type ExtendedFABLabelProps = TextProps;
  *
  * ```
  * Pressable                         ← RNGH gesture tracking, interaction progress context
- *   └─ ElevationContainer           ← platform shadow, hover elevation animation (level 3 → 4)
- *       └─ ShapeContainer           ← animated borderRadius (shape morphing + focus ring)
+ *   └─ Surface                ← animated borderRadius + elevation shadow + focus ring
  *           ├─ StateLayer           ← press/hover/focus tint overlay + disabled container overlay
  *           └─ ExtendedFABProvider  ← React Context (size, colorStyle, disabled, selected)
  *               ├─ ExtendedFABIcon  ← auto-sized Material Symbol icon
@@ -415,7 +413,7 @@ const ExtendedFAB = React.memo(function ExtendedFAB({
   styles.useVariants({ size, colorStyle, disabled });
 
   const restShape: ShapeSpec = useMemo(() => restShapeProp ?? getEFABRestShapeToken(size), [restShapeProp, size]);
-  const shapes: InteractionShapes | undefined = useMemo(
+  const shapes: SurfaceInteractions['shapes'] = useMemo(
     () => interactionShapes ?? { press: getEFABPressedShapeToken(size) },
     [interactionShapes, size],
   );
@@ -470,16 +468,20 @@ const ExtendedFAB = React.memo(function ExtendedFAB({
       {...(toggle && { 'aria-pressed': selected })}
       {...props}
     >
-      <ElevationContainer level={elevationLevel} elevations={elevationInteractions}>
-        <ShapeContainer shape={restShape} shapes={shapes} speed="default" style={[styles.container, containerStyle]}>
-          <StateLayer
-            color={EFAB_STATE_LAYER_COLOR[colorStyle]}
-            disabled={disabled}
-            disabledOpacity={EFAB_DISABLED_CONTAINER_OPACITY}
-          />
-          <ExtendedFABProvider value={ctx}>{children}</ExtendedFABProvider>
-        </ShapeContainer>
-      </ElevationContainer>
+      <Surface
+        shape={restShape}
+        speed="default"
+        elevation={elevationLevel}
+        interactions={{ shapes, elevations: elevationInteractions }}
+        style={[styles.container, containerStyle]}
+      >
+        <StateLayer
+          color={EFAB_STATE_LAYER_COLOR[colorStyle]}
+          disabled={disabled}
+          disabledOpacity={EFAB_DISABLED_CONTAINER_OPACITY}
+        />
+        <ExtendedFABProvider value={ctx}>{children}</ExtendedFABProvider>
+      </Surface>
     </Pressable>
   );
 
@@ -606,13 +608,12 @@ const styles = StyleSheet.create((theme) => ({
       },
     },
   },
-  // The visible FAB container. Rendered inside ShapeContainer (which clips to
+  // The visible FAB container. Rendered inside Surface (which clips to
   // animated borderRadius). Layout, colors, and dimensions are all variant-driven.
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
 
     variants: {
       size: {
@@ -711,10 +712,10 @@ ExtendedFABLabel.displayName = 'ExtendedFABLabel';
 export type {
   ExtendedFABColorStyle,
   ExtendedFABIconProps,
-  InteractionShapes as ExtendedFABInteractionShapes,
   ExtendedFABLabelProps,
   ExtendedFABProps,
   ShapeSpec as ExtendedFABShapeSpec,
   ExtendedFABSize,
+  SurfaceInteractions as ExtendedFABSurfaceInteractions,
 };
 export { ExtendedFAB, ExtendedFABIcon, ExtendedFABLabel, useExtendedFAB };

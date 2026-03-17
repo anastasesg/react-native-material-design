@@ -9,15 +9,9 @@ import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { ElevationContainer, type InteractionElevations } from '@/components/custom/elevation-container';
 import { Pressable, type PressableProps, type TapEvent } from '@/components/custom/pressable';
-import {
-  type InteractionShapes,
-  ShapeContainer,
-  type ShapeSpec,
-  type ShapeToken,
-} from '@/components/custom/shape-container';
 import { StateLayer } from '@/components/custom/state-layer';
+import { type ShapeSpec, type ShapeToken, Surface, type SurfaceInteractions } from '@/components/custom/surface';
 import { useControllableState } from '@/hooks';
 import type { ElevationLevel, Scheme } from '@/theme';
 import { childGuard, createComponentContext } from '@/utilities';
@@ -47,7 +41,7 @@ const [ButtonProvider, useButton] = createComponentContext<ButtonCtx>('Button');
 /**
  * Computes the rest (unpressed) shape token from M3 spec rules.
  *
- * - Rounded buttons always use `'full'` (pill — capped at containerHeight/2 in ShapeContainer)
+ * - Rounded buttons always use `'full'` (pill — capped at containerHeight/2 in Surface)
  * - Square buttons scale with size:
  *   - xsmall/small → `'medium'` (12dp)
  *   - medium → `'large'` (16dp)
@@ -135,9 +129,9 @@ type ButtonVariant = 'filled' | 'elevated' | 'tonal' | 'outlined' | 'text';
 type ButtonSelection = 'none' | 'selected' | 'unselected';
 
 /** M3 filled/tonal: hover lifts from level 0 → level 1. */
-const SURFACE_HOVER: InteractionElevations = { hover: 1 };
+const SURFACE_HOVER: SurfaceInteractions['elevations'] = { hover: 1 };
 /** M3 elevated: hover lifts from level 1 → level 2, press stays at level 1 (explicit). */
-const ELEVATED_HOVER: InteractionElevations = { hover: 2, press: 1 };
+const ELEVATED_HOVER: SurfaceInteractions['elevations'] = { hover: 2, press: 1 };
 
 /**
  * M3 spec: md.comp.button.*.disabled.container.opacity = 0.1 (all variants).
@@ -265,7 +259,7 @@ type ButtonProps = Omit<PressableProps, 'disabled' | 'style'> & {
    * <Button interactionShapes={{}} />
    * ```
    */
-  interactionShapes?: InteractionShapes;
+  interactionShapes?: SurfaceInteractions['shapes'];
 
   /**
    * Elevation level (0–5). Accepts a static number or a `SharedValue<number>`
@@ -275,7 +269,7 @@ type ButtonProps = Omit<PressableProps, 'disabled' | 'style'> & {
    */
   elevation?: ElevationLevel | SharedValue<number>;
 
-  /** Additional style for the inner container (the ShapeContainer). */
+  /** Additional style for the inner container (the Surface). */
   containerStyle?: StyleProp<ViewStyle>;
 };
 
@@ -294,8 +288,7 @@ type ButtonProps = Omit<PressableProps, 'disabled' | 'style'> & {
  *
  * ```
  * Pressable                    ← RNGH gesture tracking, interaction progress context
- *   └─ ElevationContainer      ← platform shadow, hover/press elevation animation
- *       └─ ShapeContainer      ← animated borderRadius (shape morphing + focus ring)
+ *   └─ Surface           ← animated borderRadius + elevation shadow + focus ring
  *           ├─ StateLayer      ← press/hover/focus tint overlay + disabled container overlay
  *           └─ ButtonProvider   ← React Context (size, variant, selection, disabled)
  *               ├─ ButtonIcon  ← auto-sized Material Symbol icon
@@ -389,7 +382,7 @@ const Button = React.memo(function Button({
     () => restShapeProp ?? getRestShapeToken(size, shape, selection),
     [restShapeProp, size, shape, selection],
   );
-  const shapes: InteractionShapes | undefined = useMemo(
+  const shapes: SurfaceInteractions['shapes'] = useMemo(
     () => interactionShapes ?? { press: getPressedShapeToken(size) },
     [interactionShapes, size],
   );
@@ -484,12 +477,15 @@ const Button = React.memo(function Button({
       {...(effectiveToggle && { 'aria-pressed': selected })}
       {...props}
     >
-      <ElevationContainer level={elevationLevel} elevations={elevationInteractions}>
-        <ShapeContainer shape={restShape} shapes={shapes} style={[styles.container, containerStyle]}>
-          <StateLayer color={stateLayerColor} disabled={disabled} disabledOpacity={BUTTON_DISABLED_CONTAINER_OPACITY} />
-          <ButtonProvider value={ctx}>{children}</ButtonProvider>
-        </ShapeContainer>
-      </ElevationContainer>
+      <Surface
+        shape={restShape}
+        elevation={elevationLevel}
+        interactions={{ shapes, elevations: elevationInteractions }}
+        style={[styles.container, containerStyle]}
+      >
+        <StateLayer color={stateLayerColor} disabled={disabled} disabledOpacity={BUTTON_DISABLED_CONTAINER_OPACITY} />
+        <ButtonProvider value={ctx}>{children}</ButtonProvider>
+      </Surface>
     </Pressable>
   );
 });
@@ -603,13 +599,12 @@ const styles = StyleSheet.create((theme) => ({
   // Empty root style — exists as the anchor for consumer `style` prop overrides
   // applied via `[styles.root, style]` on the Pressable wrapper.
   root: {},
-  // The visible button container. Rendered inside ShapeContainer (which clips to
+  // The visible button container. Rendered inside Surface (which clips to
   // animated borderRadius). Layout, colors, and borders are all variant-driven.
   container: {
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    overflow: 'hidden',
 
     variants: {
       size: {

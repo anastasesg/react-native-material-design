@@ -136,7 +136,7 @@ type PressableProps = Omit<ViewProps, 'style' | 'hitSlop'> & {
  * Replaces RN's Pressable with a gesture-driven state machine that tracks
  * press, hover, focus, and drag interactions as spring-animated SharedValues.
  * Interaction progress is provided to children via React context — child
- * components like {@link StateLayer} and {@link ShapeContainer} read it
+ * components like {@link StateLayer} and {@link Surface} read it
  * automatically without prop drilling.
  *
  * ## Architecture
@@ -154,10 +154,10 @@ type PressableProps = Omit<ViewProps, 'style' | 'hitSlop'> & {
  * @example
  * ```tsx
  * <Pressable onPress={handlePress} speed="fast" scheme="expressive">
- *   <ShapeContainer shape="full" shapes={{ press: 'medium' }}>
+ *   <Surface shape="full" shapes={{ press: 'medium' }}>
  *     <StateLayer color="onPrimary" />
  *     <ButtonLabel>Click me</ButtonLabel>
- *   </ShapeContainer>
+ *   </Surface>
  * </Pressable>
  * ```
  */
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
       _focus: {
         // Use transparent instead of 'none' — in forced-colors mode (Windows High Contrast),
         // the system overrides transparent to the system highlight color, preserving a visible
-        // focus indicator. The M3 focus ring is rendered by ShapeContainer's animated outline.
+        // focus indicator. The M3 focus ring is rendered by Surface's animated outline.
         outline: '2px solid transparent',
       },
     },

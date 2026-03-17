@@ -9,19 +9,18 @@ import { type StyleProp, type ViewStyle } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { StyleSheet } from 'react-native-unistyles';
 
-import { ElevationContainer, type InteractionElevations } from '@/components/custom/elevation-container';
 import type { ElevationLevel, Scheme } from '@/theme';
 
 import { useControllableState } from '../../hooks';
 import { childGuard, createComponentContext, warnUnexpectedChild } from '../../utilities';
 import {
-  type InteractionShapes,
   Pressable,
   type PressableProps,
-  ShapeContainer,
   type ShapeSpec,
   type ShapeToken,
   StateLayer,
+  Surface,
+  type SurfaceInteractions,
   type TapEvent,
 } from '../custom';
 import { Icon, type IconProps, type MaterialSymbol } from './icon';
@@ -97,7 +96,7 @@ const FAB_STATE_LAYER_COLOR: Record<FABColorStyle, keyof Scheme> = {
 };
 
 /** Default hover elevation for FAB (M3 spec: level 3 → level 4 on hover). */
-const FAB_HOVER_ELEVATIONS: InteractionElevations = { hover: 4 };
+const FAB_HOVER_ELEVATIONS: SurfaceInteractions['elevations'] = { hover: 4 };
 
 /**
  * M3 spec: `md.comp.fab.*.disabled.container.opacity` = 0.12 = `theme.state.disabledContainer`.
@@ -186,7 +185,7 @@ type FABBaseProps = Omit<PressableProps, 'disabled' | 'style' | 'children' | 'ac
    * <FAB interactionShapes={{}} />
    * ```
    */
-  interactionShapes?: InteractionShapes;
+  interactionShapes?: SurfaceInteractions['shapes'];
   /**
    * Elevation level (0–5). Accepts a static number or a `SharedValue<number>`
    * from `useSharedValue()` for animated transitions.
@@ -232,7 +231,7 @@ type FABBaseProps = Omit<PressableProps, 'disabled' | 'style' | 'children' | 'ac
   selectedTooltip?: string;
   /** Style applied to the root `Pressable` wrapper (controls outer positioning/margins). */
   style?: StyleProp<ViewStyle>;
-  /** Style applied to the inner `ShapeContainer` (the visible FAB container). */
+  /** Style applied to the inner `Surface` (the visible FAB container). */
   containerStyle?: StyleProp<ViewStyle>;
 };
 
@@ -294,8 +293,7 @@ type FABIconProps = IconProps & {
  *
  * ```
  * Pressable                    ← RNGH gesture tracking, interaction progress context
- *   └─ ElevationContainer      ← platform shadow, hover elevation animation (level 3 → 4)
- *       └─ ShapeContainer      ← animated borderRadius (shape morphing + focus ring)
+ *   └─ Surface           ← animated borderRadius + elevation shadow + focus ring
  *           ├─ StateLayer      ← press/hover/focus tint overlay + disabled container overlay
  *           └─ FABProvider     ← React Context (size, colorStyle, disabled, selected)
  *               └─ FABIcon     ← auto-sized Material Symbol icon
@@ -414,7 +412,7 @@ const FAB = React.memo(function FAB({
   }
 
   const restShape: ShapeSpec = useMemo(() => restShapeProp ?? getFABRestShapeToken(size), [restShapeProp, size]);
-  const shapes: InteractionShapes | undefined = useMemo(
+  const shapes: SurfaceInteractions['shapes'] = useMemo(
     () => interactionShapes ?? { press: getFABPressedShapeToken(size) },
     [interactionShapes, size],
   );
@@ -466,16 +464,19 @@ const FAB = React.memo(function FAB({
       {...(toggle && { 'aria-pressed': selected })}
       {...props}
     >
-      <ElevationContainer level={elevationLevel} elevations={elevationInteractions}>
-        <ShapeContainer shape={restShape} shapes={shapes} style={[styles.container, containerStyle]}>
-          <StateLayer
-            color={FAB_STATE_LAYER_COLOR[colorStyle]}
-            disabled={disabled}
-            disabledOpacity={FAB_DISABLED_CONTAINER_OPACITY}
-          />
-          <FABProvider value={ctx}>{children}</FABProvider>
-        </ShapeContainer>
-      </ElevationContainer>
+      <Surface
+        shape={restShape}
+        elevation={elevationLevel}
+        interactions={{ shapes, elevations: elevationInteractions }}
+        style={[styles.container, containerStyle]}
+      >
+        <StateLayer
+          color={FAB_STATE_LAYER_COLOR[colorStyle]}
+          disabled={disabled}
+          disabledOpacity={FAB_DISABLED_CONTAINER_OPACITY}
+        />
+        <FABProvider value={ctx}>{children}</FABProvider>
+      </Surface>
     </Pressable>
   );
 
@@ -555,7 +556,7 @@ const FABIcon = React.memo(function FABIcon({ selectedName, name, style, ...prop
 const styles = StyleSheet.create((theme) => ({
   // Root style on the outer Pressable wrapper. Contains minWidth/minHeight per size
   // to guarantee the touch target matches the visual container even under clipping parents.
-  // Elevation is handled by ElevationContainer — no shadow properties here.
+  // Elevation is handled by Surface — no shadow properties here.
   root: {
     variants: {
       size: {
@@ -579,13 +580,12 @@ const styles = StyleSheet.create((theme) => ({
       },
     },
   },
-  // The visible FAB container. Rendered inside ShapeContainer (which clips to
+  // The visible FAB container. Rendered inside Surface (which clips to
   // animated borderRadius). Fixed square dimensions per size — icon is centered
   // via flex alignment. Colors are colorStyle-driven via variants.
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
 
     variants: {
       size: {
@@ -655,9 +655,9 @@ FABIcon.displayName = 'FABIcon';
 export type {
   FABColorStyle,
   FABIconProps,
-  InteractionShapes as FABInteractionShapes,
   FABProps,
   ShapeSpec as FABShapeSpec,
   FABSize,
+  SurfaceInteractions as FABSurfaceInteractions,
 };
 export { FAB, FABIcon, useFAB };

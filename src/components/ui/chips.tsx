@@ -12,7 +12,7 @@ import type { Scheme } from '@/theme/scheme';
 
 import { useControllableState } from '../../hooks';
 import { createComponentContext } from '../../utilities';
-import { Pressable, type PressableProps, ShapeContainer, StateLayer, type TapEvent } from '../custom';
+import { Pressable, type PressableProps, StateLayer, Surface, type TapEvent } from '../custom';
 import { Icon, type IconProps } from './icon';
 import { Text, type TextProps } from './text';
 
@@ -130,9 +130,9 @@ function Chip({
       accessibilityState={{ disabled, checked: isSelectable ? selected : undefined }}
       {...props}
     >
-      <ShapeContainer
+      <Surface
         shape="small"
-        shapes={{ press: 'xsmall' }}
+        interactions={{ shapes: { press: 'xsmall' } }}
         style={[
           styles.container,
           hasLeadingIcon && styles.containerWithLeadingIcon,
@@ -157,7 +157,7 @@ function Chip({
         {disabled && (elevation === 'elevated' || selected) && <View style={styles.disabledContainer} />}
 
         <StateLayer color={stateLayerColor} />
-      </ShapeContainer>
+      </Surface>
     </Pressable>
   );
 }
@@ -232,7 +232,6 @@ const styles = StyleSheet.create((theme) => ({
     height: 32,
     paddingHorizontal: 16,
     gap: 8,
-    overflow: 'hidden',
 
     variants: {
       type: {

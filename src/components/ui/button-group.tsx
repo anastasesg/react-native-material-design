@@ -10,7 +10,7 @@ import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 import { createComponentContext, createOptionalComponentContext } from '../../utilities';
-import { type PerCornerShape, ShapeContainer, type ShapeCorner, type ShapeToken } from '../custom';
+import { type PerCornerShape, type ShapeCorner, type ShapeToken, Surface } from '../custom';
 
 // =============================================================================
 // Cross-component context: consumed by Button / IconButton to suppress corners
@@ -298,9 +298,9 @@ function ConnectedItem({
   }
 
   return (
-    <ShapeContainer
+    <Surface
       shape={restShape}
-      shapes={{ press: pressShape }}
+      interactions={{ shapes: { press: pressShape } }}
       style={[
         groupStyles.connectedClip,
         { height: HEIGHT[size] },
@@ -310,7 +310,7 @@ function ConnectedItem({
       <ButtonGroupItemProvider value={suppressCtx}>
         {React.cloneElement(child, cloneProps as any)}
       </ButtonGroupItemProvider>
-    </ShapeContainer>
+    </Surface>
   );
 }
 
