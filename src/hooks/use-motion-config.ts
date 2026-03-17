@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { UnistylesRuntime } from 'react-native-unistyles';
 
@@ -96,7 +96,7 @@ function useMotionConfig(speed: MotionSpeed, scheme?: MotionScheme): MotionConfi
     spatial.value = resolveSpring(cachedMotion, speed, 'spatial', reducedMotion, scheme);
   }, [effects, spatial, speed, scheme, reducedMotion, motionScheme]);
 
-  return { effects, spatial, reducedMotion };
+  return useMemo(() => ({ effects, spatial, reducedMotion }), [effects, spatial, reducedMotion]);
 }
 
 export type { MotionConfig, MotionSpeed };
