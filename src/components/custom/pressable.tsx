@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useImperativeHandle, useMemo } from 'react';
 import type { Insets, NativeSyntheticEvent, StyleProp, TargetedEvent, ViewProps, ViewStyle } from 'react-native';
 import { View } from 'react-native';
 import type {
@@ -124,6 +124,28 @@ type PressableProps = Omit<ViewProps, 'style' | 'hitSlop'> & {
    * ```
    */
   gesture?: GestureType;
+
+  /**
+   * Ref to expose interaction shared values to the parent component.
+   *
+   * By default, interaction progress is only available to *children* via
+   * `useInteraction()` context. This ref lets the component that *renders*
+   * the Pressable also access the shared values — useful for driving
+   * animations outside the Pressable tree (e.g., FABMenu morph).
+   *
+   * The ref is assigned synchronously during render via `useMemo` — it's
+   * safe to read `.current` in `useEffect` or `useAnimatedStyle`.
+   *
+   * @example
+   * ```tsx
+   * const interaction = useRef<InteractionProgress>(null);
+   * <Pressable interactionRef={interaction} onPress={handlePress}>
+   *   ...
+   * </Pressable>
+   * // Parent can read interaction.current.spatial.hover.value in worklets
+   * ```
+   */
+  interactionRef?: React.RefObject<InteractionProgress | null>;
 };
 
 // ---------------------------------------------------------------------------
@@ -180,6 +202,7 @@ function Pressable({
   speed = 'default',
   scheme,
   gesture: externalGesture,
+  interactionRef,
   ...viewProps
 }: PressableProps) {
   styles.useVariants({ disabled });
@@ -318,6 +341,10 @@ function Pressable({
     }),
     [ePress, eHover, eFocus, eDrag, sPress, sHover, sFocus, sDrag],
   );
+
+  // Expose interaction state to parent via ref. Uses useImperativeHandle
+  // so the assignment happens during React's commit phase (safe with concurrent mode).
+  useImperativeHandle(interactionRef, () => progress, [progress]);
 
   // Web keyboard activation — mirrors the touch gesture pattern:
   // keyDown (non-repeat) → press animation starts (like gesture onBegin)
